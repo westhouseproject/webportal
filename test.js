@@ -65,15 +65,16 @@ describe('unit tests', function () {
           ensureEmail(req, res, next);
 
           expect(res.redirect.called).to.be(true);
+          expect(res.redirect.args[0][0]).to.be('/new-email');
           expect(next.called).to.be(false);
         }
       );
 
       it(
-        'should not redirect if the user is already on `/account`',
+        'should not redirect if the user is already on `/new-email`',
         function () {
           var req = {
-            path: '/account',
+            path: '/new-email',
             isAuthenticated: function () {
               return true;
             },
@@ -92,6 +93,45 @@ describe('unit tests', function () {
           expect(next.called).to.be(true);
         }
       )
+    });
+
+    describe('ensureNoEmail', function () {
+      var ensureNoEmail = require('./middlewares').ensureNoEmail;
+
+      it('should redirect away if the user already has a valid email address', function () {
+        var req = {
+          user: {
+            email_address: 'sample@example.com'
+          }
+        };
+        var res = {
+          redirect: sinon.spy()
+        };
+        var next = sinon.spy();
+
+        ensureNoEmail(req, res, next);
+
+        expect(res.redirect.called).to.be(true);
+        expect(res.redirect.args[0][0]).to.be('/account');
+        expect(next.called).to.be(false);
+      });
+
+      it('should not redirect if the user does not already have a valid email address', function () {
+        var req = {
+          user: {
+            email_address: ''
+          }
+        };
+        var res = {
+          redirect: sinon.spy()
+        };
+        var next = sinon.spy();
+
+        ensureNoEmail(req, res, next);
+
+        expect(res.redirect.called).to.be(false);
+        expect(next.called).to.be(true);
+      });
     });
   })
 });

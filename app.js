@@ -9,6 +9,12 @@ var validator = require('validator');
 var crypto = require('crypto');
 var _ = require('lodash');
 var lessMiddleware = require('less-middleware');
+var nodemailer = require('nodemailer');
+
+var smtpTransport = nodemailer.createTransport(
+  settings.get('mailer:type'),
+  settings.get('mailer:options')
+);
 
 // TODO: check to see whether or not a model instance maintains a persistent
 // connection with the DBMS.
@@ -21,14 +27,10 @@ var lessMiddleware = require('less-middleware');
 // have a database of user records, the complete Twitter profile is serialized
 // and deserialized.
 passport.serializeUser(function (user, done) {
-  console.log('Serializing');
-  console.log(user);
   done(null, user.id);
 });
 
 passport.deserializeUser(function (id, done) {
-  console.log('Deserializing');
-  console.log(id);
   models
     .User
     .find(id)
@@ -46,8 +48,8 @@ passport.deserializeUser(function (id, done) {
 // invoke a callback with a user object.
 passport.use(
   new TwitterStrategy({
-    consumerKey: settings.get('auth:twitter:consumerKey'), // TWITTER_CONSUMER_KEY,
-    consumerSecret: settings.get('auth:twitter:consumerSecret'), // TWITTER_CONSUMER_SECRET,
+    consumerKey: settings.get('auth:twitter:consumerKey'),
+    consumerSecret: settings.get('auth:twitter:consumerSecret'),
     callbackUrl: settings.get('rootHost') + '/auth/twitter/callback'
   },
   function (token, tokenSecret, profile, done) {
@@ -155,18 +157,62 @@ app.get(
   '/account',
   ensureAuthenticated,
   function (req, res) {
-
-    console.log(req.user);
     res.render('account', { user: req.user });
-
   }
 );
+
+app.get(
+  '/new-email',
+  ensureAuthenticated,
+  middlewares.ensureNoEmail,
+  function (req, res) {
+    res.render('new-email', { user: req.user });
+  }
+);
+
+app.post(
+  '/new-email',
+  ensureAuthenticated,
+  middlewares.ensureNoEmail,
+  function (req, res) {
+    models
+      .User
+      .find(req.user.id)
+      .success(function (user) {
+        user.values.email_address = req.body.email_address;
+        user
+          .save()
+          .success(function (user) {
+            req.user = user.values;
+            smtpTransport.sendMail({
+              from: 'ALIS Web Portal <noreply@sfusl.ca>',
+              to: user.values.email_address,
+              subject: 'Welcome to ALIS',
+              text:
+                'Hi ' + user.values.full_name + ',\n\n' +
+                'Thanks for signing up to the ALIS Web Portal. Your account ' +
+                'is now ready.\n\n' +
+                '- ALIS Web Portal'
+            }, function (err, response) {
+              if (err) {
+                console.log('Error sending mail.');
+                console.log(err);
+              }
+              console.log(response);
+            });
+            res.redirect('/new-email');
+          })
+          .error(function (err) {
+            next(err);
+          });
+      });
+  }
+)
 
 app.post(
   '/account',
   ensureAuthenticated,
   function (req, res, next) {
-    console.log(req.user);
     models
       .User
       .find(req.user.id)
@@ -176,8 +222,6 @@ app.post(
         user
           .save()
           .success(function (user) {
-            req.user = user.values;
-            console.log(req.user);
             res.redirect('/account');
           })
           .error(function (err) {

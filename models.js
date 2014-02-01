@@ -8,6 +8,10 @@ var sequelize = new Sequelize(
   settings.get('database:sequelizeSettings')
 );
 
+/*
+ * Represents a user.
+ */
+
 var User = module.exports.User = sequelize.define('user', {
   // This represnts the Twitter ID, and not the Twitter handle.
   twitter_id: Sequelize.STRING,
@@ -15,8 +19,6 @@ var User = module.exports.User = sequelize.define('user', {
   full_name: Sequelize.STRING,
 
   email_address: Sequelize.STRING
-}, {
-
 });
 
 /*

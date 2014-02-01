@@ -7,9 +7,24 @@ html(lang='en')
     meta(name='viewport', content='width=device-width, initial-scale=1')
 
     link(rel='stylesheet', href='/components/bootstrap/dist/css/bootstrap.css')
-    
+    link(rel='stylesheet', href='/css/layout.css')
+
     block styles
   body
+
+    nav.navbar.navbar-default(role='navigation')
+      .container-fluid
+        .navbar-header
+          button.navbar-toggle(type='button', data-toggle='collapse', data-target='#navbar')
+            span.sr-only
+            span.icon-bar
+            span.icon-bar
+            span.icon-bar
+          a.navbar-brand(href='/') ALIS Web Portal
+
+        #navbar.collapse.navbar-collapse
+          if (user)
+            include partials/loggedin-nav
 
     block content
 
