@@ -1,15 +1,24 @@
 {
   "scripts": {
+    "test": "./node_modules/mocha/bin/mocha",
     "install": "./node_modules/bower/bin/bower install"
   },
   "devDependencies": {
-    "bower": "~1.2.8"
+    "bower": "~1.2.8",
+    "mocha": "~1.17.1",
+    "expect.js": "~0.2.0",
+    "sinon": "~1.7.3"
   },
   "dependencies": {
     "jade": "~1.1.5",
     "passport": "~0.2.0",
     "express": "~3.4.8",
     "passport-twitter": "~1.0.2",
-    "nconf": "~0.6.9"
+    "nconf": "~0.6.9",
+    "validator": "~3.2.1",
+    "sequelize": "~1.7.0-rc3",
+    "mysql": "~2.0.1",
+    "lodash": "~2.4.1",
+    "less-middleware": "~0.1.15"
   }
 }

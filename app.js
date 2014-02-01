@@ -3,6 +3,15 @@ var path = require('path');
 var passport = require('passport');
 var TwitterStrategy = require('passport-twitter').Strategy;
 var settings = require('./settings');
+var models = require('./models');
+var middlewares = require('./middlewares');
+var validator = require('validator');
+var crypto = require('crypto');
+var _ = require('lodash');
+var lessMiddleware = require('less-middleware');
+
+// TODO: check to see whether or not a model instance maintains a persistent
+// connection with the DBMS.
 
 // Passport session setup.
 // To support persistent login sessions, Passport needs to be able to
@@ -12,11 +21,23 @@ var settings = require('./settings');
 // have a database of user records, the complete Twitter profile is serialized
 // and deserialized.
 passport.serializeUser(function (user, done) {
-  done(null, user);
+  console.log('Serializing');
+  console.log(user);
+  done(null, user.id);
 });
 
-passport.deserializeUser(function (obj, done) {
-  done(null, obj);
+passport.deserializeUser(function (id, done) {
+  console.log('Deserializing');
+  console.log(id);
+  models
+    .User
+    .find(id)
+    .success(function (user) {
+      done(null, user);
+    })
+    .error(function (err) {
+      done(err);
+    });
 });
 
 // Use the TwitterStrategy within Passport.
@@ -30,10 +51,20 @@ passport.use(
     callbackUrl: settings.get('rootHost') + '/auth/twitter/callback'
   },
   function (token, tokenSecret, profile, done) {
-    process.nextTick(function () {
-      // TODO: match the user to an actual record in the database.
-      return done(null, profile);
-    });
+
+    // Either find a user with the same Twitter ID, or create a new user with
+    // the given username.
+    models
+      .User
+      .findOrCreate({
+        twitter_id: profile.id
+      }, {
+        full_name: profile.displayName
+      })
+      .success(function (user) {
+        done(null, user.values);
+      })
+      .error(done);
   }
 ));
 
@@ -42,6 +73,7 @@ passport.use(
  * not, redirect to the login route.
  */
 
+// TODO: unit test this.
 function ensureAuthenticated(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
@@ -54,6 +86,7 @@ function ensureAuthenticated(req, res, next) {
  * so, redirect to inde route.
  */
 
+// TODO: unit test this.
 function ensureUnauthenticated(req, res, next) {
   if (!req.isAuthenticated()) {
     return next();
@@ -65,13 +98,30 @@ var app = express();
 
 app.set('views', path.resolve(__dirname, 'views'));
 app.set('view engine', 'jade');
-app.use(express.cookieParser('1234213n,nxvzoiu4/zvxcfsasdjf'));
-app.use(express.session({ secret: 'asdjflsajdf,xcv,znxcviowueiro' }));
+app.locals.crypto = crypto;
 app.use(express.bodyParser());
 app.use(express.methodOverride());
+
+// TODO: send these string constants to settings files.
+app.use(express.cookieParser('1234213n,nxvzoiu4/zvxcfsasdjf'));
+app.use(express.session({ secret: 'asdjflsajdf,xcv,znxcviowueiro' }));
+
+app.use(express.csrf());
+app.use(function (req, res, next) {
+  res.cookie('XSRF-TOKEN', req.csrfToken());
+  res.locals.token = req.csrfToken();
+  next();
+});
 app.use(passport.initialize());
 app.use(passport.session());
+app.use(lessMiddleware({
+  src: path.join(__dirname, 'private'),
+  dest: path.join(__dirname, 'out')
+}));
 app.use(express.static(path.resolve(__dirname, 'public')));
+app.use(express.static(path.resolve(__dirname, 'out')));
+
+app.use(middlewares.ensureEmail);
 
 app.get('/', function (req, res) {
   res.render('index', { user: req.user });
@@ -92,17 +142,69 @@ app.get(
 
 app.get(
   '/auth/twitter/callback',
+  function (req, res, next) {
+    next();
+  },
   passport.authenticate('twitter'),
   function (req, res) {
     res.redirect('/');
   }
 );
 
-app.get('/logout', function (req, res) {
-  req.logout();
-  res.redirect('/');
-});
+app.get(
+  '/account',
+  ensureAuthenticated,
+  function (req, res) {
 
-app.listen(settings.get('port'), function () {
-  console.log('Server listening on port %d', this.address().port);
+    console.log(req.user);
+    res.render('account', { user: req.user });
+
+  }
+);
+
+app.post(
+  '/account',
+  ensureAuthenticated,
+  function (req, res, next) {
+    console.log(req.user);
+    models
+      .User
+      .find(req.user.id)
+      .success(function (user) {
+        user.values.full_name = req.body.full_name;
+        user.values.email_address = req.body.email_address;
+        user
+          .save()
+          .success(function (user) {
+            req.user = user.values;
+            console.log(req.user);
+            res.redirect('/account');
+          })
+          .error(function (err) {
+            next(err);
+          });
+      })
+      .error(function (err) {
+        next(err);
+      });
+  }
+)
+
+app.get(
+  '/logout',
+  ensureAuthenticated,
+  function (req, res) {
+    req.logout();
+    res.redirect('/');
+  }
+);
+
+models.connect(function (err) {
+  if (err) {
+    throw err;
+  }
+
+  app.listen(settings.get('port'), function () {
+    console.log('Server listening on port %d', this.address().port);
+  });
 });

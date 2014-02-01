@@ -15,4 +15,10 @@ nconf.file({
   file: path.join(__dirname, nconf.get('environment') + '.json')
 });
 
+// On production, never, EVER drop the databases. Hence, here, we are setting
+// nconf.get
+if (nconf.get('environment') === 'production') {
+  nconf.set('database:sync', false);
+}
+
 module.exports = nconf;

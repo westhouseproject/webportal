@@ -1,3 +1,4 @@
 settings/*.json
 node_modules
 public/components
+out
