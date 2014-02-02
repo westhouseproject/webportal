@@ -13,8 +13,12 @@ var sequelize = new Sequelize(
  */
 
 var User = module.exports.User = sequelize.define('user', {
+  // TODO: avoid use of the `_id` suffix, when a column does not represent the
+  //   ID of another table.
   // This represnts the Twitter ID, and not the Twitter handle.
   twitter_id: Sequelize.STRING,
+
+  google_open_id: Sequelize.STRING,
 
   full_name: Sequelize.STRING,
 

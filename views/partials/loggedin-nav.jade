@@ -1,6 +1,16 @@
 ul.nav.navbar-nav.navbar-right
-  li
-    a.account-link(href='/account')
+  li.dropdown
+    a.dropdown-toggle.account-link(href='dropdown-toggle', data-toggle='dropdown')
       - var hash = crypto.createHash('md5').update(user.email_address || '').digest('hex')
       img(alt='Your profile picture', src='http://www.gravatar.com/avatar/#{hash}?d=mm&s=16')
-      | Account
+      | Account 
+      b.caret
+    ul.dropdown-menu
+      li
+        a(href='/account')
+          span.glyphicon.glyphicon-cog
+          |  Settings
+      li
+        a(href='/logout')
+          span.glyphicon.glyphicon-log-out
+          |  Log Out

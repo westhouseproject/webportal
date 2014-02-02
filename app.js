@@ -1,7 +1,7 @@
 var express = require('express');
 var path = require('path');
 var passport = require('passport');
-var TwitterStrategy = require('passport-twitter').Strategy;
+var GoogleStrategy = require('passport-google').Strategy;
 var settings = require('./settings');
 var models = require('./models');
 var middlewares = require('./middlewares');
@@ -47,28 +47,25 @@ passport.deserializeUser(function (id, done) {
 // credentials (in this case, a token, tokenSecret, and Twitter profile), and
 // invoke a callback with a user object.
 passport.use(
-  new TwitterStrategy({
-    consumerKey: settings.get('auth:twitter:consumerKey'),
-    consumerSecret: settings.get('auth:twitter:consumerSecret'),
-    callbackUrl: settings.get('rootHost') + '/auth/twitter/callback'
+  new GoogleStrategy({
+    returnURL: settings.get('rootHost') + '/auth/google/return',
+    realm: settings.get('rootHost') + '/'
   },
-  function (token, tokenSecret, profile, done) {
-
-    // Either find a user with the same Twitter ID, or create a new user with
-    // the given username.
+  function (identifier, profile, done) {
+    console.log(profile);
     models
       .User
       .findOrCreate({
-        twitter_id: profile.id
+        google_open_id: identifier
       }, {
-        full_name: profile.displayName
+        full_name: profile.display
       })
       .success(function (user) {
         done(null, user.values);
       })
       .error(done);
   }
-));
+))
 
 /*
  * A middleware used on a route to ensure that the user is authenticated. If
@@ -134,24 +131,20 @@ app.get('/login', ensureUnauthenticated, function (req, res) {
 });
 
 app.get(
-  '/auth/twitter',
-  passport.authenticate('twitter'),
+  '/auth/google',
+  passport.authenticate('google'),
   function (req, res) {
-    // The request will be redirected to Twitter for authentication, so this
-    // function will not be called.
+
   }
 );
 
 app.get(
-  '/auth/twitter/callback',
-  function (req, res, next) {
-    next();
-  },
-  passport.authenticate('twitter'),
-  function (req, res) {
-    res.redirect('/');
-  }
-);
+  '/auth/google/return',
+  passport.authenticate('google', {
+    successRedirect: '/account',
+    failureRedirect: '/login'
+  })
+)
 
 app.get(
   '/account',
