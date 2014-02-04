@@ -3,13 +3,30 @@ var path = require('path');
 var passport = require('passport');
 var GoogleStrategy = require('passport-google').Strategy;
 var settings = require('./settings');
-var models = require('./models');
+var Sequelize = require('sequelize');
 var middlewares = require('./middlewares');
 var validator = require('validator');
 var crypto = require('crypto');
 var _ = require('lodash');
 var lessMiddleware = require('less-middleware');
 var nodemailer = require('nodemailer');
+
+var sequelize = new Sequelize(
+  settings.get('database:database'),
+  settings.get('database:username'),
+  settings.get('database:password'),
+  settings.get('database:sequelizeSettings')
+);
+
+/*
+ * Prepare the models, so that we can store them in their respective tables.
+ */
+
+var models = require('alis-models').define(sequelize);
+
+/*
+ * Used for mailing things out to users.
+ */
 
 var smtpTransport = nodemailer.createTransport(
   settings.get('mailer:type'),
@@ -52,13 +69,12 @@ passport.use(
     realm: settings.get('rootHost') + '/'
   },
   function (identifier, profile, done) {
-    console.log(profile);
     models
       .User
       .findOrCreate({
-        google_open_id: identifier
+        google_open_id_token: identifier
       }, {
-        full_name: profile.display
+        full_name: profile.displayName
       })
       .success(function (user) {
         done(null, user.values);
@@ -81,8 +97,8 @@ function ensureAuthenticated(req, res, next) {
 }
 
 /*
- * A middleware used on a route o ensure that the user is not authenticated. If
- * so, redirect to inde route.
+ * A middleware used on a route to ensure that the user is not authenticated. If
+ * so, redirect to index route.
  */
 
 // TODO: unit test this.
@@ -141,7 +157,7 @@ app.get(
 app.get(
   '/auth/google/return',
   passport.authenticate('google', {
-    successRedirect: '/account',
+    successRedirect: '/',
     failureRedirect: '/login'
   })
 )
@@ -236,12 +252,21 @@ app.get(
   }
 );
 
-models.connect(function (err) {
-  if (err) {
-    throw err;
-  }
-
+function runServer() {
   app.listen(settings.get('port'), function () {
     console.log('Server listening on port %d', this.address().port);
   });
-});
+}
+
+if (settings.get('database:sync')) {
+  sequelize
+    .sync({ force: true })
+    .success(function () {
+      runServer();
+    })
+    .error(function (err) {
+      throw err;
+    });
+} else {
+  process.nextTick(runServer);
+}

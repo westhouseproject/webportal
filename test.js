@@ -135,3 +135,15 @@ describe('unit tests', function () {
     });
   })
 });
+
+describe('integration tests', function () {
+  describe('models', function () {
+    describe('ALISDevice', function () {
+      describe('creation', function () {
+        it('should initialize a new uuid_token, without explicitly specifying', function () {
+          
+        });
+      });
+    });
+  });
+});
