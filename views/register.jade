@@ -1,0 +1,18 @@
+extends layout
+
+block styles
+  link(rel='stylesheet', href='/css/register.css')
+
+block content
+  .container-fluid
+    .register
+      h1 Register a New Account
+      form(role='form', action='/register', method='post')
+        input(type='hidden', name='_csrf', value=token)
+        .form-group
+          input.form-control.input-lg(type='username', name='username', placeholder='Choose a username')
+        .form-group
+          input.form-control.input-lg(type='email', name='email_address' placeholder='Enter your e-mail')
+        .form-group
+          input.form-control.input-lg(type='password', name='password', placeholder='Create a password')
+        input.btn.btn-primary.btn-lg.btn-block(type='submit', value='Sign Up')

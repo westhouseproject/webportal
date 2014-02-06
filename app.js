@@ -1,7 +1,6 @@
 var express = require('express');
 var path = require('path');
 var passport = require('passport');
-var GoogleStrategy = require('passport-google').Strategy;
 var settings = require('./settings');
 var Sequelize = require('sequelize');
 var middlewares = require('./middlewares');
@@ -10,6 +9,7 @@ var crypto = require('crypto');
 var _ = require('lodash');
 var lessMiddleware = require('less-middleware');
 var nodemailer = require('nodemailer');
+var LocalStrategy = require('passport-local').Strategy;
 
 var sequelize = new Sequelize(
   settings.get('database:database'),
@@ -32,9 +32,6 @@ var smtpTransport = nodemailer.createTransport(
   settings.get('mailer:type'),
   settings.get('mailer:options')
 );
-
-// TODO: check to see whether or not a model instance maintains a persistent
-// connection with the DBMS.
 
 // Passport session setup.
 // To support persistent login sessions, Passport needs to be able to
@@ -59,29 +56,23 @@ passport.deserializeUser(function (id, done) {
     });
 });
 
-// Use the TwitterStrategy within Passport.
-// Strategies in passport require a `verify` function, which accept
-// credentials (in this case, a token, tokenSecret, and Twitter profile), and
-// invoke a callback with a user object.
-passport.use(
-  new GoogleStrategy({
-    returnURL: settings.get('rootHost') + '/auth/google/return',
-    realm: settings.get('rootHost') + '/'
-  },
-  function (identifier, profile, done) {
+passport.use(new LocalStrategy(
+  function (username, password, done) {
     models
       .User
-      .findOrCreate({
-        google_open_id_token: identifier
-      }, {
-        full_name: profile.displayName
+      .authenticate(username, password)
+      .then(function (user) {
+        if (!user) {
+          return done(null, false, {
+            message: 'Incorrect username or password'
+          });
+        }
+
+        return done(null, user);
       })
-      .success(function (user) {
-        done(null, user.values);
-      })
-      .error(done);
+      .catch(done);
   }
-))
+));
 
 /*
  * A middleware used on a route to ensure that the user is authenticated. If
@@ -93,7 +84,7 @@ function ensureAuthenticated(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
   }
-  res.redirect('/login');
+  res.redirect('/');
 }
 
 /*
@@ -121,6 +112,7 @@ app.use(express.methodOverride());
 app.use(express.cookieParser('1234213n,nxvzoiu4/zvxcfsasdjf'));
 app.use(express.session({ secret: 'asdjflsajdf,xcv,znxcviowueiro' }));
 
+// TODO: handle CSRF token mismatch.
 app.use(express.csrf());
 app.use(function (req, res, next) {
   res.cookie('XSRF-TOKEN', req.csrfToken());
@@ -136,30 +128,56 @@ app.use(lessMiddleware({
 app.use(express.static(path.resolve(__dirname, 'public')));
 app.use(express.static(path.resolve(__dirname, 'out')));
 
-app.use(middlewares.ensureEmail);
-
 app.get('/', function (req, res) {
   res.render('index', { user: req.user });
 });
 
-app.get('/login', ensureUnauthenticated, function (req, res) {
-  res.render('login');
-});
-
 app.get(
-  '/auth/google',
-  passport.authenticate('google'),
+  '/register',
+  ensureUnauthenticated,
   function (req, res) {
-
+    res.render('register');
   }
 );
 
-app.get(
-  '/auth/google/return',
-  passport.authenticate('google', {
-    successRedirect: '/',
-    failureRedirect: '/login'
-  })
+// TODO: handle registration errors.
+app.post(
+  '/register',
+  ensureUnauthenticated,
+  function (req, res, next) {
+    models
+      .User
+      .create({
+        username: req.body.username,
+        email_address: req.body.email_address,
+        password: req.body.password
+      })
+      .complete(function (err, user) {
+        if (err) {
+          return next(err);
+        }
+        passport.authenticate(
+          'local',
+          {
+            successRedirect: '/',
+            failureRedirect: '/'
+          }
+        )(req, res, next);
+      });
+  }
+);
+
+// TODO: show a flash for registration errors.
+app.post(
+  '/login',
+  ensureUnauthenticated,
+  passport.authenticate(
+    'local',
+    {
+      successRedirect: '/',
+      failureRedirect: '/'
+    }
+  )
 )
 
 app.get(
@@ -169,54 +187,6 @@ app.get(
     res.render('account', { user: req.user });
   }
 );
-
-app.get(
-  '/new-email',
-  ensureAuthenticated,
-  middlewares.ensureNoEmail,
-  function (req, res) {
-    res.render('new-email', { user: req.user });
-  }
-);
-
-app.post(
-  '/new-email',
-  ensureAuthenticated,
-  middlewares.ensureNoEmail,
-  function (req, res) {
-    models
-      .User
-      .find(req.user.id)
-      .success(function (user) {
-        user.values.email_address = req.body.email_address;
-        user
-          .save()
-          .success(function (user) {
-            req.user = user.values;
-            smtpTransport.sendMail({
-              from: 'ALIS Web Portal <noreply@sfusl.ca>',
-              to: user.values.email_address,
-              subject: 'Welcome to ALIS',
-              text:
-                'Hi ' + user.values.full_name + ',\n\n' +
-                'Thanks for signing up to the ALIS Web Portal. Your account ' +
-                'is now ready.\n\n' +
-                '- ALIS Web Portal'
-            }, function (err, response) {
-              if (err) {
-                console.log('Error sending mail.');
-                console.log(err);
-              }
-              console.log(response);
-            });
-            res.redirect('/new-email');
-          })
-          .error(function (err) {
-            next(err);
-          });
-      });
-  }
-)
 
 app.post(
   '/account',
@@ -241,7 +211,7 @@ app.post(
         next(err);
       });
   }
-)
+);
 
 app.get(
   '/logout',
