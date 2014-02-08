@@ -1,0 +1,16 @@
+extends layout
+
+block styles
+
+block content
+  .container-fluid
+    h1 Register a New Device
+    form.form-horizontal(role='form' action='/register-device', method='post')
+      input(type='hidden' name='_csrf' value=token)
+      .form-group
+        label.col-sm-2.control-label(for='common_name') Device name
+        .col-sm-10
+          input.form-control(name='common_name' type='text' placeholder='E.g. 123 Main Street, Cabin, etc.')
+      .form-group
+        .col-sm-offset-2.col-sm-10
+          input.btn.btn-primary(type='submit' value='Register Device')

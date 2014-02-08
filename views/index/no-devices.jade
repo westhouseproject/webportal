@@ -1,0 +1,17 @@
+extends ../layout
+
+block styles
+  if !user
+    link(rel='stylesheet', href='/css/index-logged-off.css')
+
+block content
+  .container-fluid
+    h1 There's nothing yet. Hang tight
+    p
+      | We're simply waiting for you to become a maintainer for at least one
+      | ALIS device.
+    p
+      | You can either ask someone you know to give you access to their ALIS
+      | device, or you can 
+      a(href='/register-device')
+        | register a new one

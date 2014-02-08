@@ -3,7 +3,6 @@ var path = require('path');
 var passport = require('passport');
 var settings = require('./settings');
 var Sequelize = require('sequelize');
-var middlewares = require('./middlewares');
 var validator = require('validator');
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -49,7 +48,11 @@ passport.deserializeUser(function (id, done) {
     .User
     .find(id)
     .success(function (user) {
-      done(null, user);
+      user.getALISDevice().complete(function (err, devices) {
+        if (err) { done(err); }
+        user.devices = devices;
+        done(null, user);
+      })
     })
     .error(function (err) {
       done(err);
@@ -128,28 +131,50 @@ app.use(lessMiddleware({
 app.use(express.static(path.resolve(__dirname, 'public')));
 app.use(express.static(path.resolve(__dirname, 'out')));
 
-app.get('/', function (req, res) {
-  if (req.user) {
-    return models
-      .User
-      .find(req.user.id)
-      .complete(function (err, user) {
-        if (err) {
-          return next(err);
-        }
-        for (var key in user) {
-          console.log(key);
-        }
-        user.getALISDevice().complete(function (err, devices) {
-          res.render('index', {
-            user: user,
-            devices: devices
-          });
-        });
-      })
+app.use(function (req, res, next) {
+  if (req.isAuthenticated()) {
+    res.locals.user = req.user;
   }
-  res.render('index', { user: null });
+  next();
 });
+
+// TODO: flash a message if an error occured.
+
+app.get(
+  '/',
+  function (req, res, next) {
+    if (req.isAuthenticated()) { return next(); }
+    res.render('index/log-in');
+  },
+  function (req, res, next) {
+    if (req.user.devices.length) { return next(); }
+    res.render('index/no-devices')
+  },
+  function (req, res, next) {
+    if (req.user.devices.length > 1) { return next(); }
+    res.redirect('/devices/' + req.user.devices[0].uuid_token);
+  },
+  function (req, res) {
+    res.render('index/devices');
+  }
+);
+
+app.get(
+  '/devices/:uuid',
+  ensureAuthenticated,
+  function (req, res, next) {
+    var device = req.user.devices.filter(function (device) {
+      return device.uuid_token === req.params.uuid;
+    })[0];
+
+    // This often means that the user does not have access to the device.
+    if (!device) { return next(); }
+
+    res.render('dashboard', {
+      device: device
+    });
+  }
+);
 
 app.get(
   '/register',
@@ -167,11 +192,11 @@ app.post(
     models
       .User
       .create({
+        full_name: req.body.full_name,
         username: req.body.username,
         email_address: req.body.email_address,
         password: req.body.password
-      })
-      .complete(function (err, user) {
+      }).complete(function (err, user) {
         if (err) {
           return next(err);
         }
@@ -204,7 +229,7 @@ app.get(
   '/account',
   ensureAuthenticated,
   function (req, res) {
-    res.render('account', { user: req.user });
+    res.render('account');
   }
 );
 
@@ -241,6 +266,29 @@ app.get(
     res.redirect('/');
   }
 );
+
+app.get(
+  '/register-device',
+  ensureAuthenticated,
+  function (req, res) {
+    res.render('register-device');
+  }
+);
+
+app.post(
+  '/register-device',
+  ensureAuthenticated,
+  function (req, res, next) {
+    req.user.createALISDevice({
+      common_name: req.body.common_name
+    }).complete(function (err, device) {
+      if (err) { return next(err); }
+      res.redirect('/');
+    });
+  }
+)
+
+// TODO: add a 404 page.
 
 function runServer() {
   app.listen(settings.get('port'), function () {

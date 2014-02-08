@@ -1,0 +1,9 @@
+extends layout
+
+block styles
+  if !user
+    link(rel='stylesheet', href='/css/index-logged-off.css')
+
+block content
+  .container-fluid
+    p This feature is not yet implemented
