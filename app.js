@@ -129,7 +129,26 @@ app.use(express.static(path.resolve(__dirname, 'public')));
 app.use(express.static(path.resolve(__dirname, 'out')));
 
 app.get('/', function (req, res) {
-  res.render('index', { user: req.user });
+  if (req.user) {
+    return models
+      .User
+      .find(req.user.id)
+      .complete(function (err, user) {
+        if (err) {
+          return next(err);
+        }
+        for (var key in user) {
+          console.log(key);
+        }
+        user.getALISDevice().complete(function (err, devices) {
+          res.render('index', {
+            user: user,
+            devices: devices
+          });
+        });
+      })
+  }
+  res.render('index', { user: null });
 });
 
 app.get(
@@ -168,6 +187,7 @@ app.post(
 );
 
 // TODO: show a flash for registration errors.
+// TODO: accept requests to keep user logged-in.
 app.post(
   '/login',
   ensureUnauthenticated,

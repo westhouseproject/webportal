@@ -1,1 +1,0 @@
-var validator = require('validator');
