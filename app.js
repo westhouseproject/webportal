@@ -9,6 +9,8 @@ var _ = require('lodash');
 var lessMiddleware = require('less-middleware');
 var nodemailer = require('nodemailer');
 var LocalStrategy = require('passport-local').Strategy;
+var async = require('async');
+var RedisStore = require('connect-redis')(express);
 
 var sequelize = new Sequelize(
   settings.get('database:database'),
@@ -32,13 +34,6 @@ var smtpTransport = nodemailer.createTransport(
   settings.get('mailer:options')
 );
 
-// Passport session setup.
-// To support persistent login sessions, Passport needs to be able to
-// serialize users into and deserialize users out of the session.  Typically,
-// this will be as simple as storing the user ID when serializing, and finding
-// the user by ID when deserializing.  However, since this example does not
-// have a database of user records, the complete Twitter profile is serialized
-// and deserialized.
 passport.serializeUser(function (user, done) {
   done(null, user.id);
 });
@@ -82,7 +77,6 @@ passport.use(new LocalStrategy(
  * not, redirect to the login route.
  */
 
-// TODO: unit test this.
 function ensureAuthenticated(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
@@ -95,7 +89,6 @@ function ensureAuthenticated(req, res, next) {
  * so, redirect to index route.
  */
 
-// TODO: unit test this.
 function ensureUnauthenticated(req, res, next) {
   if (!req.isAuthenticated()) {
     return next();
@@ -107,21 +100,51 @@ var app = express();
 
 app.set('views', path.resolve(__dirname, 'views'));
 app.set('view engine', 'jade');
+
+// The Node.js crypto library is used in generating the hash for retrieving
+// gravatar pictures by the client.
 app.locals.crypto = crypto;
+
 app.use(express.bodyParser());
 app.use(express.methodOverride());
+app.use(express.cookieParser());
+app.use(express.session({
+  secret: settings.get('sessionToken'),
+  store: new RedisStore()
+}));
 
-// TODO: send these string constants to settings files.
-app.use(express.cookieParser('1234213n,nxvzoiu4/zvxcfsasdjf'));
-app.use(express.session({ secret: 'asdjflsajdf,xcv,znxcviowueiro' }));
+// Convenience function for generating flashes, for whatever reason.
+  /*
+  */
+app.use(function (req, res, next) {
+  res.locals.messages = req.session.messages || {};
+  res.locals.fields = req.session.fields || {};
+
+  req.session.messages = {};
+  req.session.fields = {};
+  req.flash = function (type, message) {
+    req.session.messages[type] = req.session.messages[type] || [];
+    req.session.messages[type].push(message);
+  };
+  req.flashField = function (name, type, message) {
+    req.session.fields[name] = {
+      type: type,
+      message: message || ''
+    }
+  }
+  next();
+});
 
 // TODO: handle CSRF token mismatch.
 app.use(express.csrf());
+
+// TODO: check to see if this is even necessary.
 app.use(function (req, res, next) {
   res.cookie('XSRF-TOKEN', req.csrfToken());
   res.locals.token = req.csrfToken();
   next();
 });
+
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(lessMiddleware({
@@ -163,6 +186,7 @@ app.get(
   '/devices/:uuid',
   ensureAuthenticated,
   function (req, res, next) {
+    // TODO: move this to a separate API call.
     var device = req.user.devices.filter(function (device) {
       return device.uuid_token === req.params.uuid;
     })[0];
@@ -175,6 +199,27 @@ app.get(
     });
   }
 );
+
+app.get(
+  '/devices/:uuid/graph',
+  ensureAuthenticated,
+  function (req, res, next) {
+    // TODO: move this to a separate API call.
+    var device = req.user.devices.filter(function (device) {
+      return device.uuid_token === req.params.uuid;
+    })[0];
+
+    if (!device) { return next(); }
+
+    device.getEnergyReadings().then(function (readings) {
+      async.map(readings, function (reading, callback) {
+        models.EnergyConsumer
+      }, function (err, readings) {
+        res.json(readings);
+      })
+    }).catch(next);
+  }
+)
 
 app.get(
   '/register',
@@ -290,15 +335,26 @@ app.post(
 
 // TODO: add a 404 page.
 
+// Handles the error when the user can't be authenticated.
+app.use(function (err, req, res, next) {
+  if (!err.unauthorized) { return next(err); }
+  req.flash('error', err.message);
+  req.flashField('username', 'error');
+  res.redirect('/');
+});
+
 function runServer() {
+  // TODO: show a more informative message. See how the DBMS is set up.
   app.listen(settings.get('port'), function () {
-    console.log('Server listening on port %d', this.address().port);
+    console.log('App: webportal');
+    console.log('Port:', this.address().port);
+    console.log('Mode:', settings.get('environment'));
   });
 }
 
 if (settings.get('database:sync')) {
   sequelize
-    .sync({ force: true })
+    .sync({ force: !!settings.get('database:forceSync') })
     .success(function () {
       runServer();
     })

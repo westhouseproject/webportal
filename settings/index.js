@@ -3,13 +3,12 @@ var path = require('path');
 
 nconf.use('memory');
 
-nconf.set('NODE_ENV', 'development');
-
 nconf.env();
 
 nconf.set('port', 8080);
 
-nconf.set('environment', nconf.get('NODE_ENV'));
+nconf.set('environment', nconf.get('NODE_ENV') || 'production');
+nconf.set('database:sync', false);
 
 nconf.file({
   file: path.join(__dirname, nconf.get('environment') + '.json')
@@ -19,6 +18,7 @@ nconf.file({
 // nconf.get
 if (nconf.get('environment') === 'production') {
   nconf.set('database:sync', false);
+  nconf.set('database.forceSync', false);
 }
 
 module.exports = nconf;

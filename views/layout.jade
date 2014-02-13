@@ -27,6 +27,20 @@ html(lang='en')
           #navbar.collapse.navbar-collapse
             include partials/loggedin-nav
 
+    .container-fluid
+      .alerts
+        for errorMessage in messages.error || []
+          - console.log(errorMessage)
+          .alert.alert-danger.alert-dismissable
+            button.close(type='button' data-dismiss='alert' aria-hidden='true') &times;
+            | #{errorMessage}
+
+        for successMessage in messages.success || []
+          - console.log(successMessage)
+          .alert.alert-success.alert-dismissable
+            button.close(type='button' data-dismiss='alert' aria-hidden='true') &times;
+            | #{successMessage}
+
     block content
 
     script(src='/components/jquery/jquery.js')
