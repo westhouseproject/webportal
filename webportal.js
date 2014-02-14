@@ -23,7 +23,7 @@ var sequelize = new Sequelize(
  * Prepare the models, so that we can store them in their respective tables.
  */
 
-var models = require('alis-models').define(sequelize);
+var models = require('./models').define(sequelize);
 
 /*
  * Used for mailing things out to users.
@@ -345,23 +345,10 @@ app.use(function (err, req, res, next) {
   res.redirect('/');
 });
 
-function runServer() {
+models.prepare(function runServer() {
   app.listen(settings.get('port'), function () {
     console.log('App: webportal');
     console.log('Port:', this.address().port);
     console.log('Mode:', settings.get('environment'));
   });
-}
-
-if (settings.get('database:sync')) {
-  sequelize
-    .sync({ force: !!settings.get('database:forceSync') })
-    .success(function () {
-      runServer();
-    })
-    .error(function (err) {
-      throw err;
-    });
-} else {
-  process.nextTick(runServer);
-}
+});

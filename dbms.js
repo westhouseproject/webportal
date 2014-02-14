@@ -9,7 +9,7 @@ var sequelize = new Sequelize(
   settings.get('database').sequelizeSettings
 );
 
-var models = require('alis-models').define(sequelize);
+var models = require('./models.js').define(sequelize);
 
 var app = express();
 
@@ -65,21 +65,10 @@ app.use(function (err, req, res, next) {
   return next(err);
 });
 
-function runServer() {
+models.prepare(function () {
   app.listen(settings.get('port'), function () {
     console.log('App: DBMS');
     console.log('Port:', this.address().port);
     console.log('Mode:', settings.get('environment'));
   });
-}
-
-if (settings.get('database:sync')) {
-  sequelize
-    .sync({ force: !!settings.get('database:forceSync') })
-    .complete(function (err) {
-      if (err) { throw err; }
-      runServer();
-    });
-} else {
-  process.nextTick(runServer);
-}
+});
