@@ -469,6 +469,8 @@ module.exports.define = function (sequelize) {
       authenticate: function (username, password) {
         var def = bluebird.defer();
 
+        // Search for a username is case-insensitive.
+
         this
           .find({
             where: [ 'username = ? OR email_address = ?', username, username ]

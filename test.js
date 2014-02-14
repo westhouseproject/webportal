@@ -10,6 +10,8 @@ try {
   settings = JSON.parse(fs.readFileSync('settings.json', 'utf8'));
 } catch (e) {}
 
+// TODO: nest all model tests into another describe call.
+
 describe('integration tests', function () {
   var sequelize;
   var models;
@@ -694,6 +696,95 @@ describe('integration tests', function () {
           models
             .User
             .authenticate(aliceCredentials.username, aliceCredentials.password)
+            .then(function (user) {
+              expect(user.username).to.be(aliceCredentials.username);
+              done();
+            })
+            .catch(function (err) {
+              throw err;
+            });
+        });
+      });
+
+      it('should authenticate someone, given a email address and password that match a record', function (done) {
+        var aliceCredentials = {
+          username: 'alice',
+          password: 'somepassword',
+          email_address: 'alice@wonderland.com'
+        };
+        async.parallel([
+          function (callback) {
+            models
+              .User
+              .create(aliceCredentials)
+              .complete(function (err, user) {
+                if (err) { return callback(err); }
+                callback(null);
+              })
+          },
+          function (callback) {
+            models
+              .User
+              .create({
+                username: 'bob',
+                password: 'somepassword',
+                email_address: 'valid@example.com'
+              })
+              .complete(function (err, user) {
+                if (err) { return callback(err); }
+                callback(null);
+              })
+          }
+        ], function (err) {
+          if (err) { throw err; }
+          models
+            .User
+            .authenticate(aliceCredentials.email_address, aliceCredentials.password)
+            .then(function (user) {
+              expect(user.username).to.be(aliceCredentials.username);
+              expect(user.email_address).to.be(aliceCredentials.email_address);
+              done();
+            })
+            .catch(function (err) {
+              throw err;
+            });
+        });
+      });
+
+      it('should authenticate someone, given a username with a different case, and password that match a record', function (done) {
+        var aliceCredentials = {
+          username: 'alice',
+          password: 'somepassword',
+          email_address: 'alice@wonderland.com'
+        };
+        async.parallel([
+          function (callback) {
+            models
+              .User
+              .create(aliceCredentials)
+              .complete(function (err, user) {
+                if (err) { return callback(err); }
+                callback(null);
+              })
+          },
+          function (callback) {
+            models
+              .User
+              .create({
+                username: 'bob',
+                password: 'somepassword',
+                email_address: 'valid@example.com'
+              })
+              .complete(function (err, user) {
+                if (err) { return callback(err); }
+                callback(null);
+              })
+          }
+        ], function (err) {
+          if (err) { throw err; }
+          models
+            .User
+            .authenticate(aliceCredentials.username.toUpperCase(), aliceCredentials.password)
             .then(function (user) {
               expect(user.username).to.be(aliceCredentials.username);
               done();
