@@ -12,6 +12,7 @@ html(lang='en')
     block styles
   body
 
+    //- TODO: find a method to ensure there aren't any redundant mixins defined.
     mixin createLargeLabellessField(name, type, placeholder)
       - var cls = 'form-group'
       - var value = ''
@@ -45,12 +46,13 @@ html(lang='en')
         for errorMessage in messages.error || []
           .alert.alert-danger.alert-dismissable
             button.close(type='button' data-dismiss='alert' aria-hidden='true') &times;
-            | #{errorMessage}
+            != mdoneline(errorMessage)
 
+        - console.log(messages)
         for successMessage in messages.success || []
           .alert.alert-success.alert-dismissable
             button.close(type='button' data-dismiss='alert' aria-hidden='true') &times;
-            | #{successMessage}
+            != mdoneline(successMessage)
 
     //- TODO add padding at the bottom.
 

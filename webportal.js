@@ -11,8 +11,10 @@ var nodemailer = require('nodemailer');
 var LocalStrategy = require('passport-local').Strategy;
 var async = require('async');
 var RedisStore = require('connect-redis')(express);
+var marked = require('marked');
+var cheerio = require('cheerio');
 
-// TODO: move everything into their own controllers.
+// TODO: move all routes into their own controllers.
 
 var sequelize = new Sequelize(
   settings.get('database:database'),
@@ -56,6 +58,7 @@ passport.deserializeUser(function (id, done) {
     });
 });
 
+// TODO: handle cases when the username has a mixture of upper and lower case.
 passport.use(new LocalStrategy(
   function (username, password, done) {
     models
@@ -68,9 +71,16 @@ passport.use(new LocalStrategy(
           });
         }
 
-        return done(null, user);
+        done(null, user);
       })
-      .catch(done);
+      .catch(function (err) {
+        if (err.name === 'UnauthorizedError') {
+          return done(null, false, {
+            message: 'Incorrect username or password'
+          });
+        }
+        done(err);
+      });
   }
 ));
 
@@ -79,6 +89,7 @@ passport.use(new LocalStrategy(
  * not, redirect to the login route.
  */
 
+// TODO: have this route flash an error message.
 function ensureAuthenticated(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
@@ -91,10 +102,21 @@ function ensureAuthenticated(req, res, next) {
  * so, redirect to index route.
  */
 
+// TODO: have this route flash an warning message.
 function ensureUnauthenticated(req, res, next) {
   if (!req.isAuthenticated()) {
     return next();
   }
+  res.redirect('/');
+}
+
+/*
+ * A middleware used on a route to ensure
+ */
+
+// TODO: have this route flash a warning message.
+function ensureUnverified(req, res, next) {
+  if (!req.user || !req.user.isVerified()) { return next(); }
   res.redirect('/');
 }
 
@@ -136,6 +158,12 @@ app.set('view engine', 'jade');
 // gravatar pictures by the client.
 app.locals.crypto = crypto;
 
+// This is a function that takes the first Markdown paragraph, and converts it
+// into HTML.
+app.locals.mdoneline = function (str) {
+  return cheerio.load(marked(str))('p').html()
+}
+
 // TODO: remove call to this.
 // Here's why: http://andrewkelley.me/post/do-not-use-bodyparser-with-express-js.html
 // Instead, use express.json and express.urlencoded
@@ -163,9 +191,22 @@ app.use(function (req, res, next) {
   next();
 });
 
+// TODO: handle CSRF token mismatch.
+app.use(express.csrf());
+
+// TODO: check to see if this is even necessary.
+app.use(function (req, res, next) {
+  res.cookie('XSRF-TOKEN', req.csrfToken());
+  res.locals.token = req.csrfToken();
+  next();
+});
+
+app.use(passport.initialize());
+app.use(passport.session());
+
 app.use(function (req, res, next) {
   if (req.user && !req.user.isVerified()) {
-    req.flash('success', 'Your account has been created. Please check your email for a verification code.');
+    req.flash('success', 'Your account has been created. Please check your <email></email> for a verification code, or <a href="/register/resend" target="_blank">click here</a> to send another.');
   }
   next();
 });
@@ -181,18 +222,6 @@ app.use(function (req, res, next) {
   next();
 });
 
-// TODO: handle CSRF token mismatch.
-app.use(express.csrf());
-
-// TODO: check to see if this is even necessary.
-app.use(function (req, res, next) {
-  res.cookie('XSRF-TOKEN', req.csrfToken());
-  res.locals.token = req.csrfToken();
-  next();
-});
-
-app.use(passport.initialize());
-app.use(passport.session());
 app.use(lessMiddleware({
   src: path.join(__dirname, 'private'),
   dest: path.join(__dirname, 'out')
@@ -275,7 +304,6 @@ app.get(
   }
 );
 
-// TODO: handle registration errors.
 app.post(
   '/register',
   ensureUnauthenticated,
@@ -316,6 +344,7 @@ app.post(
             })();
           }
 
+          // TODO: This if-else block is really bad. Refactor it.
           if (!(err instanceof Error) || err.name === 'ValidationErrors') {
             return (function () {
 
@@ -357,8 +386,21 @@ app.post(
   }
 );
 
-// TODO: show a flash for registration errors.
-// TODO: accept requests to keep user logged-in.
+app.get(
+  '/register/resend',
+  ensureAuthenticated,
+  ensureUnverified,
+  function (req, res, next) {
+    if (req.accepts('html')) { return next(); }
+  },
+  function (req, res, next) {
+
+    res.render('register-resend');
+  }
+)
+
+// TODO: show a flash for log in errors.
+// TODO: accept requests to keep users logged-in.
 app.post(
   '/login',
   ensureUnauthenticated,
@@ -366,7 +408,8 @@ app.post(
     'local',
     {
       successRedirect: '/',
-      failureRedirect: '/'
+      failureRedirect: '/',
+      failureFlash: true
     }
   )
 )
@@ -435,14 +478,7 @@ app.post(
 )
 
 // TODO: add a 404 page.
-
-// Handles the error when the user can't be authenticated.
-app.use(function (err, req, res, next) {
-  if (!err.unauthorized) { return next(err); }
-  req.flash('error', err.message);
-  req.flashField('username', 'error');
-  res.redirect('/');
-});
+// TODO: handle errors.
 
 models.prepare(function runServer() {
   app.listen(settings.get('port'), function () {

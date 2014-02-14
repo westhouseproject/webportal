@@ -482,7 +482,7 @@ module.exports.define = function (sequelize) {
                 return def.reject(err);
               }
               if (!res) {
-                return def.reject(new Error('Password does not match'));
+                return def.reject(new UnauthorizedError('Password does not match'));
               }
 
               def.resolve(user);
@@ -705,7 +705,7 @@ module.exports.define = function (sequelize) {
           statistics.kwh_sum = kwhs.reduce(function (prev, curr) {
             return prev + curr;
           });
-          statistics.kwh_average = report.mean;
+          statistics.kwh_average = statistics.kwh_sum / kwhs.length;
           statistics.kwh_min = kwhs.slice().sort()[0];
           statistics.kwh_max = kwhs.slice().sort()[kwhs.length - 1];
         }

@@ -25,6 +25,8 @@
     "connect-redis": "~1.4.6",
     "node-uuid": "~1.4.1",
     "bcrypt": "~0.7.7",
-    "bluebird": "~1.0.4"
+    "bluebird": "~1.0.4",
+    "marked": "~0.3.1",
+    "cheerio": "~0.13.1"
   }
 }
