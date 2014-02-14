@@ -12,6 +12,19 @@ html(lang='en')
     block styles
   body
 
+    mixin createLargeLabellessField(name, type, placeholder)
+      - var cls = 'form-group'
+      - var value = ''
+      if fields[name]
+        if typeof fields[name].type == 'string'
+          - cls += ' has-' + fields[name].type
+        if typeof fields[name].value == 'string'
+          - value = fields[name].value
+      div(class=cls)
+        input.form-control.input-lg(type=type name=name placeholder=placeholder value=value)
+        if fields[name] && typeof fields[name].message == 'string'
+          span.help-block #{fields[name].message}
+
     nav.navbar.navbar-default(role='navigation')
       .container-fluid
         .navbar-header

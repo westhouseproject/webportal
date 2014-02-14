@@ -12,6 +12,8 @@ var LocalStrategy = require('passport-local').Strategy;
 var async = require('async');
 var RedisStore = require('connect-redis')(express);
 
+// TODO: move everything into their own controllers.
+
 var sequelize = new Sequelize(
   settings.get('database:database'),
   settings.get('database:username'),
@@ -96,6 +98,35 @@ function ensureUnauthenticated(req, res, next) {
   res.redirect('/');
 }
 
+var duplicateErrorChecker = {
+
+  isDuplicate: function (err) {
+    return (
+      err.errno === 1062 &&
+      err.code === 'ER_DUP_ENTRY'
+    );
+  },
+
+  /*
+   * Gets the field and the value that are a duplicate.
+   */
+
+  getField: function (err) {
+    var field = err.message.match(/[a-zA-Z123_]+'$/)[0].slice(0, -1);
+    
+    var firstHalfLen = 'ER_DUP_ENTRY: Duplicate entry \''.length;
+    var secondHalfLen = '\' for key \''.length + field.length + 1;
+
+    var value = err.message.slice(firstHalfLen, -secondHalfLen);
+
+    return {
+      field: field,
+      value: value
+    }
+  }
+
+};
+
 var app = express();
 
 app.set('views', path.resolve(__dirname, 'views'));
@@ -117,6 +148,28 @@ app.use(express.session({
   store: new RedisStore()
 }));
 
+app.use(function (req, res, next) {
+  req.flash = function (type, message) {
+    req.session.messages[type] = req.session.messages[type] || [];
+    req.session.messages[type].push(message);
+  };
+  req.flashField = function (name, type, message, value) {
+    req.session.fields[name] = {
+      type: type,
+      message: message || '',
+      value: value
+    }
+  }
+  next();
+});
+
+app.use(function (req, res, next) {
+  if (req.user && !req.user.isVerified()) {
+    req.flash('success', 'Your account has been created. Please check your email for a verification code.');
+  }
+  next();
+});
+
 // Convenience function for generating flashes, for whatever reason.
 app.use(function (req, res, next) {
   res.locals.messages = req.session.messages || {};
@@ -124,16 +177,7 @@ app.use(function (req, res, next) {
 
   req.session.messages = {};
   req.session.fields = {};
-  req.flash = function (type, message) {
-    req.session.messages[type] = req.session.messages[type] || [];
-    req.session.messages[type].push(message);
-  };
-  req.flashField = function (name, type, message) {
-    req.session.fields[name] = {
-      type: type,
-      message: message || ''
-    }
-  }
+
   next();
 });
 
@@ -221,7 +265,7 @@ app.get(
       })
     }).catch(next);
   }
-)
+);
 
 app.get(
   '/register',
@@ -244,7 +288,62 @@ app.post(
         email_address: req.body.email_address,
         password: req.body.password
       }).complete(function (err, user) {
+        // TODO: find a more cleaner method for detecting and displaying errors.
         if (err) {
+          req.flash('error', 'We\'re having a hard time understanding that');
+
+          // This means that credentials provided by the user was duplicate.
+          if (duplicateErrorChecker.isDuplicate(err)) {
+            return (function () {
+
+              // Get information about the faulty field.
+              var field = duplicateErrorChecker.getField(err);
+
+              // Push out information regarding the fields.
+              req.flashField('full_name', null, null, req.body.full_name);
+              if (field.field === 'username') {
+                req.flashField('username', 'error', 'Username already in use', field.value);
+              } else {
+                req.flashField('username', null, null, req.body.username);
+              }
+              if (field.field === 'email_address') {
+                req.flashField('email_address', 'error', 'Email address already in use', field.value);
+              } else {
+                req.flashField('email_address', null, null, req.body.email_address);
+              }
+
+              res.redirect('/register');
+            })();
+          }
+
+          if (err.name === 'ValidationErrors') {
+            return (function () {
+
+              if (err.full_name) {
+                req.flashField('full_name', 'error', 'Something went wrong here... Our bad...', req.body.full_name);
+              } else {
+                req.flashField('full_name', null, null, req.body.full_name);
+              }
+              if (err.username || err.chosen_username) {
+                req.flashField('username', 'error', 'Only alpha-numeric characters, hypens and underscores are allowed, and can only have a length between 1 and 35 characters', req.body.username)
+              } else {
+                req.flashField('username', null, null, req.body.username);
+              }
+              if (err.email_address) {
+                req.flashField('email_address', 'error', 'Must be a valid email address', req.body.email_address);
+              } else {
+                req.flashField('email_address', null, null, req.body.email_address);
+              }
+              if (err.password) {
+                req.flashField('password', 'error', 'Password must have a minimum length of 6 characters');
+              } else {
+                req.flashField('password', null, null);
+              }
+
+              res.redirect('/register');
+            })();
+          }
+
           return next(err);
         }
         passport.authenticate(

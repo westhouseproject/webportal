@@ -9,12 +9,9 @@ block content
       h1 Register a New Account
       form(role='form', action='/register', method='post')
         input(type='hidden', name='_csrf', value=token)
-        .form-group
-          input.form-control.input-lg(type='name', name='full_name', placeholder='Enter your full name')
-        .form-group
-          input.form-control.input-lg(type='username', name='username', placeholder='Choose a username')
-        .form-group
-          input.form-control.input-lg(type='email', name='email_address' placeholder='Enter your e-mail')
-        .form-group
-          input.form-control.input-lg(type='password', name='password', placeholder='Create a password')
+        +createLargeLabellessField('full_name', 'name', 'Enter your full name')
+        +createLargeLabellessField('username', 'username', 'Choose a username')
+        +createLargeLabellessField('email_address', 'email', 'Enter your e-mail')
+        +createLargeLabellessField('password', 'password', 'Create a password')
+
         input.btn.btn-primary.btn-lg.btn-block(type='submit', value='Sign Up')

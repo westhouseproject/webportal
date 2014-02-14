@@ -21,10 +21,13 @@ module.exports.define = function (sequelize) {
   retval.ValidationErrors = ValidationErrors;
   function ValidationErrors(err) {
     var finalMessage = [];
+    this.name = 'ValidationErrors';
     Object.keys(err).forEach(function (key) {
       finalMessage.push(key + ': ' + err[key]);
     });
     this.message = finalMessage.join('\n');
+    this.fields = err;
+    _.assign(this, err);
   }
   ValidationErrors.prototype = Error.prototype;
 
@@ -513,7 +516,9 @@ module.exports.define = function (sequelize) {
               (user.changed('password') && user.password.length < 6)
             ) {
               return process.nextTick(function () {
-                callback(new Error('Password is too short'));
+                callback(new ValidationErrors({
+                  password: 'Password is too short'
+                }));
               });
             }
             if (user.changed('password')) {
@@ -1057,6 +1062,10 @@ module.exports.define = function (sequelize) {
 
   retval.prepare = function (callback) {
     if (settings.get('database:sync')) {
+      console.log('Synchronizing');
+      if (!!get.settings('database:forceSync')) {
+        console.log('Dropping all tables');
+      }
       sequelize
         .sync({ force: !!settings.get('database:forceSync') })
         .complete(function (err) {
