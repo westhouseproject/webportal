@@ -9,7 +9,7 @@ var sequelize = new Sequelize(
   settings.get('database').sequelizeSettings
 );
 
-var models = require('./models.js').define(sequelize);
+var models = require('./models').define(sequelize);
 
 var app = express();
 
