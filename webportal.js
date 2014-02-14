@@ -316,7 +316,7 @@ app.post(
             })();
           }
 
-          if (err.name === 'ValidationErrors') {
+          if (!(err instanceof Error) || err.name === 'ValidationErrors') {
             return (function () {
 
               if (err.full_name) {

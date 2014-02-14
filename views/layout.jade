@@ -43,16 +43,16 @@ html(lang='en')
     .container-fluid
       .alerts
         for errorMessage in messages.error || []
-          - console.log(errorMessage)
           .alert.alert-danger.alert-dismissable
             button.close(type='button' data-dismiss='alert' aria-hidden='true') &times;
             | #{errorMessage}
 
         for successMessage in messages.success || []
-          - console.log(successMessage)
           .alert.alert-success.alert-dismissable
             button.close(type='button' data-dismiss='alert' aria-hidden='true') &times;
             | #{successMessage}
+
+    //- TODO add padding at the bottom.
 
     block content
 
