@@ -105,7 +105,11 @@ app.set('view engine', 'jade');
 // gravatar pictures by the client.
 app.locals.crypto = crypto;
 
+// TODO: remove call to this.
+// Here's why: http://andrewkelley.me/post/do-not-use-bodyparser-with-express-js.html
+// Instead, use express.json and express.urlencoded
 app.use(express.bodyParser());
+
 app.use(express.methodOverride());
 app.use(express.cookieParser());
 app.use(express.session({
@@ -114,8 +118,6 @@ app.use(express.session({
 }));
 
 // Convenience function for generating flashes, for whatever reason.
-  /*
-  */
 app.use(function (req, res, next) {
   res.locals.messages = req.session.messages || {};
   res.locals.fields = req.session.fields || {};
@@ -344,7 +346,6 @@ app.use(function (err, req, res, next) {
 });
 
 function runServer() {
-  // TODO: show a more informative message. See how the DBMS is set up.
   app.listen(settings.get('port'), function () {
     console.log('App: webportal');
     console.log('Port:', this.address().port);
