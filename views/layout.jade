@@ -48,6 +48,11 @@ html(lang='en')
             button.close(type='button' data-dismiss='alert' aria-hidden='true') &times;
             != mdoneline(errorMessage)
 
+        for warningMessage in messages.warning || []
+          .alert.alert-warning.alert-dismissable
+            button.close(type='button' data-dismiss='alert' aria-hidden='true') &times;
+            != mdoneline(warningMessage)
+
         for successMessage in messages.success || []
           .alert.alert-success.alert-dismissable
             button.close(type='button' data-dismiss='alert' aria-hidden='true') &times;

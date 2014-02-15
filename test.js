@@ -414,7 +414,7 @@ describe('integration tests', function () {
         });
 
         describe('expired reset', function () {
-          it('should allow a user to reset their password, given the email address, validation code, and password', function (done) {
+          it('should not allow a user to reset their password if their reset code has expired', function (done) {
             var email = 'valid@example.com';
             models.User.create({
               username: 'johndoe',
@@ -428,10 +428,10 @@ describe('integration tests', function () {
                 user.save().complete(function (err, user) {
                   var newPassword = 'someotherpassword';
                   models.User.resetPassword(user.email_address, user.password_reset_code, newPassword).then(function (user) {
-                    throw new Error('Not supposed to be here.')
-                  }).catch(function (err) {
-                    expect(err.name).to.be('PasswordResetCodeError');
+                    expect(user).to.be(null);
                     done();
+                  }).catch(function (err) {
+                    throw err;
                   });
                 });
               }).catch(function (err) {

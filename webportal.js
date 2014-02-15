@@ -17,6 +17,7 @@ var querystring = require('querystring');
 var fs = require('fs');
 
 // TODO: move all routes into their own controllers.
+// TODO: rename the views to be much more coherent with a given route.
 
 var sequelize = new Sequelize(
   settings.get('database:database'),
@@ -463,23 +464,53 @@ app.get(
 );
 
 app.get(
-  '/accoung/forgot',
+  '/account/forgot',
   ensureUnauthenticated,
   function (req, res) {
     res.render('account-forgot');
   }
 );
 
+function createResetPath(email, code) {
+  return '/account/reset-password?' + querystring.stringify({
+    email: email,
+    token: code
+  });
+}
+
 app.post(
   '/account/forgot',
   ensureUnauthenticated,
   function (req, res, next) {
-    models.User.find({
-      where: [ 'email_address = ?', req.body.email_address ]
-    }).complete(function (err, user) {
-      if (err) { return next(err); }
-      
-    });
+    models.User.setResetFlag(req.body.email_address).then(function (user) {
+      if (!user) {
+        return (function () {
+          req.flash('warning', 'The address, "' + req.body.email_address + '," doesn\'t seem to be associated with any user');
+          res.redirect('/account/forgot');
+        })();
+      }
+
+      fs.readFile('./email/password-reset.txt.lodash', 'utf8', function (err, data) {
+        if (err) { return console.error(err); }
+        transport.sendMail({
+          from: 'westhouse@sfu.ca',
+          to: user.email_address,
+          subject: 'Reset your password',
+          text: _.template(data, {
+            name: user.full_name,
+            resetLink: settings.get('rootHost') + createResetPath(
+              user.email_address,
+              user.password_reset_code
+            )
+          }, function (err, response) {
+            if (err) { return console.error(err); }
+            console.log(response.message);
+          })
+        })
+      });
+      req.flash('success', 'A password reset link has been sent to your email')
+      res.redirect('/');
+    }).catch(next);
   }
 );
 
@@ -519,6 +550,46 @@ app.post(
       .error(function (err) {
         next(err);
       });
+  }
+);
+
+app.get(
+  '/account/reset-password',
+  ensureUnauthenticated,
+  function (req, res, next) {
+    models.User.isResetRequestValid(req.query.email, req.query.token).then(function (res) {
+      var result = res.result;
+
+      if (!result) {
+        return (function () {
+          req.flash('error', 'The reset code seems to be either expired or invalid.');
+          res.redirect('/account/forgot');
+        })();
+      }
+
+      res.render('account-reset-password', {
+        email: req.query.email,
+        verificationCode: req.query.token
+      });
+    }).catch(next);
+  }
+);
+
+app.post(
+  '/account/reset-password',
+  ensureUnauthenticated,
+  function (req, res, next) {
+    if (req.body.password !== req.body.password_repeat) {
+      return (function () {
+        req.flash('error', 'The password and the repeat don\'t match.');
+        res.redirect(createResetPath(req.query.email, req.query.code));
+      })();
+    }
+
+    models.User.resetPassword(req.body.email, req.body.code, req.body.password).then(function (user) {
+      req.flash('success', 'Your password has been successfully changed.');
+      res.redirect('/');
+    }).catch(next);
   }
 );
 

@@ -1,0 +1,21 @@
+extends layout
+
+block styles
+  link(rel='stylesheet', href='/css/forgotten-password.css')
+
+block content
+  .container
+    .forgotten-password
+      h1 Reset Your Password
+
+      form.form-horizontal(role='form', action='/account/forgot', method='post')
+        input(type='hidden' name='_csrf' value=token)
+        .form-group
+          label.col-sm-2.control-label(for='email_address') Email Address
+          .col-sm-10
+            input.form-control.input-lg(type='email' name='email_address' placeholder='janedoe@example.com')
+        .form-group
+          .col-sm-10.col-sm-offset-2.help-block We will send a password reset link to your email
+        .form-group
+          .col-sm-10.col-sm-offset-2
+            input.btn.btn-primary(type='submit' value='Send Reset Link')

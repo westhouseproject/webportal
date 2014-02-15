@@ -35,6 +35,10 @@ module.exports.define = function (sequelize) {
    * An error occures when the user
    */
 
+  // TODO: remove this redundant class. It's much better to resolve using a null
+  //   value to imply that there was an error on the user end, than to return an
+  //   error as if it was the server. It's not the server's fault, it's the
+  //   user's
   retval.UnauthorizedError = UnauthorizedError;
   function UnauthorizedError(message) {
     Error.apply(this, arguments);
@@ -48,6 +52,10 @@ module.exports.define = function (sequelize) {
    * An error occures when the user fails to be verified
    */
 
+  // TODO: remove this redundant class. It's much better to resolve using a null
+  //   value to imply that there was an error on the user end, than to return an
+  //   error as if it was the server. It's not the server's fault, it's the
+  //   user's
   function VerificationError(message) {
     Error.apply(this, arguments);
     this.name = 'VerificationError';
@@ -55,18 +63,6 @@ module.exports.define = function (sequelize) {
     this.verified = false;
   }
   VerificationError.prototype = Error.prototype;
-
-  /*
-   * Occures when the password reset code is invalid.
-   */
-
-  function PasswordResetCodeError(message) {
-    Error.apply(this, arguments);
-    this.name = 'PasswordResetCodeError';
-    this.message = message;
-    this.verified = false;
-  }
-  PasswordResetCodeError.prototype = Error.prototype;
 
   /*
    * Floor to the nearest interval of a given date object. E.g. 12:32 will be
@@ -407,6 +403,7 @@ module.exports.define = function (sequelize) {
    * Represents a user.
    */
 
+  // TODO: enable account recovery, when the user has their email changed.
   var User = retval.User = sequelize.define('user', {
     username: {
       type: Sequelize.STRING,
@@ -548,7 +545,7 @@ module.exports.define = function (sequelize) {
       },
 
       /*
-       * Sets a password's 
+       * Sets a user's password reset code.
        */
 
       setResetFlag: function (email) {
@@ -557,6 +554,7 @@ module.exports.define = function (sequelize) {
           where: [ 'email_address = ?', email ]
         }).complete(function (err, user) {
           if (err) { return def.reject(err); }
+          if (!user) { return def.resolve(null); }
           user.password_reset_code = uuid.v4();
           user.save().complete(function (err, user) {
             if (err) { return def.reject(err); }
@@ -566,27 +564,42 @@ module.exports.define = function (sequelize) {
         return def.promise;
       },
 
-      resetPassword: function (email, resetCode, newPassword) {
+      // TODO: integration/unit test this.
+      isResetRequestValid: function (email, code) {
         var def = bluebird.defer();
         this.find({
           where: [
             'email_address = ? AND password_reset_code = ?',
             email,
-            resetCode
+            code
           ]
         }).complete(function (err, user) {
-          var errMessage = 'Password reset code has either expired, or is invalid.';
           var time = new Date();
           if (err) { return def.reject(err); }
-          if (!user) { return def.reject(new PasswordResetCodeError(errMessage)); }
-          if (user.password_reset_expiry < time) {
-            return def.reject(new PasswordResetCodeError(errMessage));
+          if (!user) { return def.resolve({ result: false }); }
+          if (user.password_reset_expiry < time) { return def.resolve({ result: false }); }
+          def.resolve({ result: true, user: user });
+        });
+        return def.promise;
+      },
+
+      // TODO: move the reset request validation to the above
+      //   isResetRequestValid method.
+      resetPassword: function (email, resetCode, newPassword) {
+        var def = bluebird.defer();
+        this.isResetRequestValid(email, resetCode).then(function (res) {
+          var result = res.result;
+          var user = res.user;
+
+          if (!result || !user) {
+            return def.resolve(null);
           }
+
           user.password = newPassword;
           user.save().complete(function (err, user) {
             def.resolve(user);
-          })
-        });
+          });
+        }).catch(def.reject.bind(def));
         return def.promise;
       }
     },
