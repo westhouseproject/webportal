@@ -519,37 +519,68 @@ app.post(
   '/account',
   ensureAuthenticated,
   function (req, res, next) {
+    if (req.body.new_password !== req.body.password_repeat) {
+      return (function () {
+        req.flash('error', 'The password repeat does not match');
+        res.redirect('/account');
+      })();
+    }
+
     var previousEmail = req.user.email_address;
 
-    req.user.full_name = req.body.full_name;
-    req.user.email_address = req.body.email_address;
+    // TODO: accept changes for only a subset of fields, when any of them are
+    //   poorly formatted. So far, when one of them is poorly formatted, no
+    //   changes are accepted.
+    // 
+    //   As a consequence, it's best to use async.parallel instead of
+    //   async.waterfall.
 
-    req.user
-      .save()
-      .success(function (user) {
-        if (user.email_address !== previousEmail) {
-          fs.readFile('./email/email-change.txt.lodash', 'utf8', function (err, data) {
-            transport.sendMail({
-              from: 'westhouse@sfu.ca',
-              to: previousEmail,
-              subject: 'Your email address has been changed',
-              text: _.template(data, {
-                name: user.full_name,
-                newEmail: user.email_address,
-                supportEmail: settings.get('supportEmail')
-              })
-            }, function (err, response) {
-              if (err) { return console.error(err); }
-              console.log(response.message);
-            });
-          });
+    async.waterfall([
+      function (callback) {
+        if (req.body.new_password) {
+          return req.user.changePassword(req.body.password, req.body.new_password).then(function (res) {
+            if (!res.result) {
+              return callback(new Error('An error occured trying to change password.'));
+            }
+            callback(null);
+          }).catch(callback);
         }
-        req.flash('success', 'Your account info has been updated.');
-        res.redirect('/account');
-      })
-      .error(function (err) {
-        next(err);
-      });
+        callback(null);
+      },
+      function (callback) {
+        req.user.full_name = req.body.full_name;
+        req.user.email_address = req.body.email_address;
+        req.user.save().success(function (user) {
+          callback(null, user);
+        }).error(callback);
+      }
+    ], function (err, user) {
+      if (err) {
+        return (function () {
+          req.flash('error', err.message);
+          res.redirect('/account')
+        })();
+      }
+      if (user.email_address !== previousEmail) {
+        fs.readFile('./email/email-change.txt.lodash', 'utf8', function (err, data) {
+          transport.sendMail({
+            from: 'westhouse@sfu.ca',
+            to: previousEmail,
+            subject: 'Your email address has been changed',
+            text: _.template(data, {
+              name: user.full_name,
+              newEmail: user.email_address,
+              supportEmail: settings.get('supportEmail')
+            })
+          }, function (err, response) {
+            if (err) { return console.error(err); }
+            console.log(response.message);
+          });
+        });
+      }
+      req.flash('success', 'Your account info has been updated.');
+      res.redirect('/account');
+    });
   }
 );
 

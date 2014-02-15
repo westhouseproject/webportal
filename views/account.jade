@@ -27,6 +27,21 @@ block content
           .col-sm-10
             input.form-control(name='email_address', value='#{user.email_address || ""}', type='name', placeholder='e.g. sample@example.com')
 
+        .form-group
+          label.col-sm-2.control-label(for='password') Old password
+          .col-sm-10
+            input.form-control(name='password' type='password')
+
+        .form-group
+          label.col-sm-2.control-label(for='new_password') New password
+          .col-sm-10
+            input.form-control(name='new_password' type='password')
+
+        .form-group
+          label.col-sm-2.control-label(for='password_repeat') New password again
+          .col-sm-10
+            input.form-control(name='password_repeat' type='password')
+
         //- Submit button
         .form-group
           .col-sm-offset-2.col-sm-10

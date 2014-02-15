@@ -509,17 +509,38 @@ module.exports.define = function (sequelize) {
        * Gets rid of the password reset flags.
        */
 
+      // TODO: actually call this method!
       _clearPasswordReset: function () {
         this.password_reset_code = null;
         this.password_reset_expiry = null;
         return this.save();
+      },
+
+      /*
+       * A convenience function for changing the password, given a previous one.
+       */
+
+      // TODO: unit test this.
+      changePassword: function (oldPassword, newPassword) {
+        var self = this;
+        var def = bluebird.defer();
+        bcrypt.compare(oldPassword, this.password, function (err, res) {
+          if (err) { return def.reject(err); }
+          if (!res) { return def.resolve({ result: false}); }
+          self.password = newPassword;
+          self.save().complete(function (err, user) {
+            if (err) { return def.reject(err); }
+            def.resolve({ result: true, user: user});
+          });
+        });
+        return def.promise;
       }
     },
     classMethods: {
       authenticate: function (username, password) {
         var def = bluebird.defer();
 
-        // Search for a username is case-insensitive.
+        // NB: search for a username is case-insensitive.
 
         this
           .find({
