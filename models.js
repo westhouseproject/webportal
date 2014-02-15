@@ -441,7 +441,15 @@ module.exports.define = function (sequelize) {
     },
     verification_code: Sequelize.STRING,
     password_reset_code: Sequelize.STRING,
-    password_reset_expiry: Sequelize.DATE
+    password_reset_expiry: Sequelize.DATE,
+    api_key: {
+      type: Sequelize.STRING,
+      allowNull: false
+    },
+    client_secret: {
+      type: Sequelize.STRING,
+      allowNull: false
+    }
   }, {
     instanceMethods: {
       normalizeUsername: function () {
@@ -633,6 +641,26 @@ module.exports.define = function (sequelize) {
               user.verification_code = uuid.v4();
             }
             process.nextTick(function () {
+              callback(null);
+            });
+          },
+          function (callback) {
+            if (user.isNewRecord) {
+              user.api_key = crypto.randomBytes(16).toString('hex');
+            } else if (user.changed('api_key')) {
+              return process.nextTick(function () {
+                callback(new Error('Cannot change API key'));
+              });
+            }
+            process.nextTick(function () {
+              callback(null);
+            });
+          },
+          function (callback) {
+            if (user.isNewRecord) {
+              user.client_secret = crypto.randomBytes(32).toString('hex');
+            }
+            return process.nextTick(function () {
               callback(null);
             });
           },

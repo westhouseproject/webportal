@@ -542,6 +542,9 @@ app.post(
             if (!res.result) {
               return callback(new Error('An error occured trying to change password.'));
             }
+
+            // TODO: email the user when the password has been changed.
+
             callback(null);
           }).catch(callback);
         }

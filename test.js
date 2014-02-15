@@ -259,6 +259,36 @@ describe('integration tests', function () {
             });
         });
       });
+
+      describe('api_key', function () {
+        it('should create a new API key', function (done) {
+          models.User.create({
+            username: 'username',
+            email_address: 'valid@example.com',
+            password: 'keyboardcat'
+          }).complete(function (err, user) {
+            if (err) { throw err; }
+            expect(user.api_key).to.be.a('string')
+            done();
+          })
+        })
+      });
+
+      describe('client_secret', function () {
+
+        it('should create a new client secret', function (done) {
+          models.User.create({
+            username: 'username',
+            email_address: 'valid@example.com',
+            password: 'keyboardcat'
+          }).complete(function (err, user) {
+            if (err) { throw err; }
+            expect(user.client_secret).to.be.a('string');
+            done();
+          });
+        });
+
+      });
     });
 
     describe('modification', function () {
@@ -560,6 +590,23 @@ describe('integration tests', function () {
           });
         });
       });
+
+      describe('api_key', function () {
+        it('should not allow for the modification of an API key', function (done) {
+          models.User.create({
+            username: 'janedoe',
+            email_address: 'valid@example.com',
+            password: 'keyboardcat'
+          }).complete(function (err, user) {
+            if (err) { throw err; }
+            user.api_key = 'somethingelse';
+            user.save().complete(function (err, user) {
+              if (!err) { throw new Error('There should have been an error.'); }
+              done();
+            })
+          })
+        });
+      })
     });
 
     describe('relationship', function () {
