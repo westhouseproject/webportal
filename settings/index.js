@@ -8,7 +8,6 @@ nconf.env();
 nconf.set('port', 8080);
 
 nconf.set('environment', nconf.get('NODE_ENV') || 'production');
-nconf.set('database:sync', false);
 
 nconf.file({
   file: path.join(__dirname, nconf.get('environment') + '.json')

@@ -307,6 +307,8 @@ describe('integration tests', function () {
 
       // TODO: test the modification of an email address.
 
+      // TODO: nest the two tests into a describe call.
+
       it('should always set the username as lowercase', function (done) {
         models
           .User
@@ -368,6 +370,46 @@ describe('integration tests', function () {
       });
 
       describe('verification', function () {
+        it('should allow for the modification of a verification', function (done) {
+          models.User.create({
+            username: 'validusername',
+            email_address: 'valid@example.com',
+            password: 'keyboardcat'
+          }).complete(function (err, user) {
+            if (err) { throw err; }
+
+            var oldVerificationCode = user.verfication_code;
+
+            user.resetVerificationCode().complete(function (err, user) {
+              if (err) { throw err; }
+              expect(user.verification_code).to.not.be(oldVerificationCode);
+              done();
+            });
+          });
+        });
+
+        it('should not allow the modification of a verification code of a user that has already been verified', function (done) {
+          models.User.create({
+            username: 'validusername',
+            email_address: 'valid@example.com',
+            password: 'keyboardcat'
+          }).complete(function (err, user) {
+            if (err) { throw err; }
+
+            user.verify(user.verification_code, user.email_address).then(function (user) {
+              user.resetVerificationCode().complete(function (err, user) {
+                expect(err != null).to.be(true);
+                // TODO: Find a better way to determine whether or not the error
+                //   is an instance of ValidationErrors.
+                expect(err.fields != null).to.be(true);
+                done();
+              });
+            }).catch(function (err) {
+              throw err;
+            });
+          })
+        });
+
         it('should not verify a user given a non-matching verification code', function (done) {
           models.User.create({
             username: 'validusername',

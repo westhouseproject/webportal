@@ -1,0 +1,7 @@
+Hi <%= name %>!
+
+Thanks for signing up to the ALIS Web Portal. We just need you to verify your account by clicking the link below, and you should be ready.
+
+<%= link %>
+
+- ALIS Web Portal

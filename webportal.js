@@ -13,6 +13,8 @@ var async = require('async');
 var RedisStore = require('connect-redis')(express);
 var marked = require('marked');
 var cheerio = require('cheerio');
+var querystring = require('querystring');
+var fs = require('fs');
 
 // TODO: move all routes into their own controllers.
 
@@ -30,10 +32,21 @@ var sequelize = new Sequelize(
 var models = require('./models').define(sequelize);
 
 /*
+ * An error that is thrown when the user ID in the session does not match
+ * on record.
+ */
+function UserSessionNotFoundError(message) {
+  Error.apply(this, arguments);
+  this.message = message;
+  this.name = 'UserSessionNotFoundError';
+}
+UserSessionNotFoundError.prototype = Error.prototype;
+
+/*
  * Used for mailing things out to users.
  */
 
-var smtpTransport = nodemailer.createTransport(
+var transport = nodemailer.createTransport(
   settings.get('mailer:type'),
   settings.get('mailer:options')
 );
@@ -47,6 +60,9 @@ passport.deserializeUser(function (id, done) {
     .User
     .find(id)
     .success(function (user) {
+      if (!user) {
+        return done(new UserSessionNotFoundError('For some reason, we can\'t seem to be able to find a session associated with you...'));
+      }
       user.getALISDevice().complete(function (err, devices) {
         if (err) { done(err); }
         user.devices = devices;
@@ -58,7 +74,6 @@ passport.deserializeUser(function (id, done) {
     });
 });
 
-// TODO: handle cases when the username has a mixture of upper and lower case.
 passport.use(new LocalStrategy(
   function (username, password, done) {
     models
@@ -206,7 +221,7 @@ app.use(passport.session());
 
 app.use(function (req, res, next) {
   if (req.user && !req.user.isVerified()) {
-    req.flash('success', 'Your account has been created. Please check your <email></email> for a verification code, or <a href="/register/resend" target="_blank">click here</a> to send another.');
+    req.flash('success', 'Your account has been created. Please check your email for a verification code, or <a href="/register/resend" target="_blank">click here</a> to send another.');
   }
   next();
 });
@@ -236,8 +251,6 @@ app.use(function (req, res, next) {
   next();
 });
 
-// TODO: flash a message if an error occured.
-
 app.get(
   '/',
   function (req, res, next) {
@@ -261,7 +274,6 @@ app.get(
   '/devices/:uuid',
   ensureAuthenticated,
   function (req, res, next) {
-    // TODO: move this to a separate API call.
     var device = req.user.devices.filter(function (device) {
       return device.uuid_token === req.params.uuid;
     })[0];
@@ -276,27 +288,6 @@ app.get(
 );
 
 app.get(
-  '/devices/:uuid/graph',
-  ensureAuthenticated,
-  function (req, res, next) {
-    // TODO: move this to a separate API call.
-    var device = req.user.devices.filter(function (device) {
-      return device.uuid_token === req.params.uuid;
-    })[0];
-
-    if (!device) { return next(); }
-
-    device.getEnergyReadings().then(function (readings) {
-      async.map(readings, function (reading, callback) {
-        models.EnergyConsumer
-      }, function (err, readings) {
-        res.json(readings);
-      })
-    }).catch(next);
-  }
-);
-
-app.get(
   '/register',
   ensureUnauthenticated,
   function (req, res) {
@@ -304,6 +295,29 @@ app.get(
   }
 );
 
+/*
+ * Sends a verification code to the specified user.
+ */
+
+function sendVerification(user, filename, subject, callback) {
+  callback = callback || function () {};
+  fs.readFile(filename, 'utf8', function (err, data) {
+    transport.sendMail({
+      from: 'westhouse@sfu.ca',
+      to: user.email_address,
+      subject: subject,
+      text: _.template(data, {
+        name: user.full_name,
+        link: settings.get('rootHost') + '/register/verify?' + querystring.stringify({
+          email: user.email_address,
+          verification: user.verification_code
+        })
+      })
+    }, callback);
+  });
+}
+
+// TODO: send an email with a verification code.
 app.post(
   '/register',
   ensureUnauthenticated,
@@ -375,6 +389,12 @@ app.post(
 
           return next(err);
         }
+
+        sendVerification(user, './email/verification.txt.lodash', 'Welcome to ALIS Web Portal', function (err, response) {
+          if (err) { return console.error(err); }
+          console.log(response.message);
+        });
+
         passport.authenticate(
           'local',
           {
@@ -391,16 +411,37 @@ app.get(
   ensureAuthenticated,
   ensureUnverified,
   function (req, res, next) {
-    if (req.accepts('html')) { return next(); }
+    req.user.resetVerificationCode().complete(function (err, user) {
+      if (err) { return next(err); }
+      sendVerification(user, './email/verification-reset.txt.lodash', 'Just one more step...', function (err, response) {
+        if (err) { return console.error(err); }
+        console.log(response.message);
+      });
+      next();
+    });
   },
   function (req, res, next) {
+    if (req.accepts('html')) { return next(); }
+    res.json({ message: 'success' });
+  },
+  function (req, res, next) {
+    req.flash('success', 'A new verification code has been sent to your email');
+    res.redirect('/');
+  }
+);
 
-    res.render('register-resend');
+app.get(
+  '/register/verify',
+  ensureAuthenticated,
+  ensureUnverified,
+  function (req, res, next) {
+    req.user.verify(req.query.verification, req.query.email).then(function (user) {
+      req.flash('success', 'Your account is now verified!');
+      res.redirect('/');
+    }).catch(next);
   }
 )
 
-// TODO: show a flash for log in errors.
-// TODO: accept requests to keep users logged-in.
 app.post(
   '/login',
   ensureUnauthenticated,
@@ -475,7 +516,19 @@ app.post(
       res.redirect('/');
     });
   }
-)
+);
+
+app.use(function (err, req, res, next) {
+  if (err.name !== 'VerificationError') { return next(err); }
+  req.flash('error', 'The verification code is either expired or invalid');
+  res.redirect('/');
+});
+
+app.use(function (err, req, res, next) {
+  if (err.name !== 'UserSessionNotFoundError') { return next(err); }
+  req.logout();
+  res.redirect('/');
+});
 
 // TODO: add a 404 page.
 // TODO: handle errors.

@@ -1,0 +1,9 @@
+Hi <%= name %>,
+
+We're sorry that you needed to reset your verification code :(. Hopefully, this time, it works. You can visit the link below, and you should be all ready.
+
+<%= link %>
+
+Again, thanks a lot for signing up to ALIS Web Portal!
+
+- ALIS Web Portal

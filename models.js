@@ -45,6 +45,18 @@ module.exports.define = function (sequelize) {
   UnauthorizedError.prototype = Error.prototype;
 
   /*
+   * An error occures when the user fails to be verified
+   */
+
+  function VerificationError(message) {
+    Error.apply(this, arguments);
+    this.name = 'VerificationError';
+    this.message = message;
+    this.verified = false;
+  }
+  VerificationError.prototype = Error.prototype;
+
+  /*
    * Floor to the nearest interval of a given date object. E.g. 12:32 will be
    * floored to 12:30 if the interval was 1000 * 60 * 5 = 5 minutes.
    */
@@ -445,7 +457,7 @@ module.exports.define = function (sequelize) {
             verification_code !== self.verification_code ||
             email_address !== self.email_address
           ) {
-            var err = new Error('Error verification code or email don\'t match.');
+            var err = new VerificationError('Error verification code or email don\'t match.');
             err.notVerified = true;
             return def.reject(err);
           }
@@ -460,6 +472,23 @@ module.exports.define = function (sequelize) {
 
         return def.promise;
       },
+
+      _changeVerificationCode: function () {
+        this.verification_code = uuid.v4();
+      },
+
+      /*
+       * A convenience function to quickly change the user's verification code.
+       */
+
+      resetVerificationCode: function () {
+        this._changeVerificationCode();
+        return this.save();
+      },
+
+      /*
+       * Convenience method, used to determine whether or not the user is verified.
+       */
 
       isVerified: function () {
         return this.verification_code == null;
@@ -499,7 +528,23 @@ module.exports.define = function (sequelize) {
         async.parallel([
           function (callback) {
             if (user.isNewRecord) {
+              // TODO: use the helper function.
               user.verification_code = uuid.v4();
+            }
+            process.nextTick(function () {
+              callback(null);
+            });
+          },
+          function (callback) {
+            if (
+              !user.isNewRecord &&
+              user.changed('verification_code') &&
+              user.previous('verification_code') == null) {
+              return process.nextTick(function () {
+                callback(new ValidationErrors({
+                  verification_code: 'The user is already verified.'
+                }));
+              });
             }
             process.nextTick(function () {
               callback(null);
@@ -1065,7 +1110,7 @@ module.exports.define = function (sequelize) {
   retval.prepare = function (callback) {
     if (settings.get('database:sync')) {
       console.log('Synchronizing');
-      if (!!get.settings('database:forceSync')) {
+      if (!!settings.get('database:forceSync')) {
         console.log('Dropping all tables');
       }
       sequelize
