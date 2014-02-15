@@ -542,6 +542,15 @@ module.exports.define = function (sequelize) {
           });
         });
         return def.promise;
+      },
+
+      _resetClientSecret: function () {
+        this.client_secret = crypto.randomBytes(32).toString('hex');
+      },
+
+      resetClientSecret: function () {
+        this._resetClientSecret();
+        return this.save();
       }
     },
     classMethods: {
@@ -658,7 +667,7 @@ module.exports.define = function (sequelize) {
           },
           function (callback) {
             if (user.isNewRecord) {
-              user.client_secret = crypto.randomBytes(32).toString('hex');
+              user._resetClientSecret();
             }
             return process.nextTick(function () {
               callback(null);

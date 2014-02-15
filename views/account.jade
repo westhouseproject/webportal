@@ -42,6 +42,18 @@ block content
           .col-sm-10
             input.form-control(name='password_repeat' type='password')
 
+        .form-group
+          label.col-sm-2.control-label API Key
+          .col-sm-10
+            p.form-control-static #{user.api_key}
+
+        .form-group
+          label.col-sm-2.control-label Client secret
+          .col-sm-10
+            p.form-control-static #{user.client_secret}
+            p.help-block
+              a(href='/account/client-secret/reset') Reset your client secret
+
         //- Submit button
         .form-group
           .col-sm-offset-2.col-sm-10

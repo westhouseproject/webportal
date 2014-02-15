@@ -628,6 +628,26 @@ app.post(
 );
 
 app.get(
+  '/account/client-secret/reset',
+  ensureAuthenticated,
+  function (req, res) {
+    res.render('account-client-secret-reset');
+  }
+);
+
+app.post(
+  '/account/client-secret/reset',
+  ensureAuthenticated,
+  function (req, res, next) {
+    req.user.resetClientSecret().complete(function (err, user) {
+      if (err) { return next(err); }
+      req.flash('success', 'Your client secret has been reset.');
+      res.redirect('/account');
+    });
+  }
+)
+
+app.get(
   '/logout',
   ensureAuthenticated,
   function (req, res) {

@@ -603,10 +603,31 @@ describe('integration tests', function () {
             user.save().complete(function (err, user) {
               if (!err) { throw new Error('There should have been an error.'); }
               done();
-            })
+            });
           })
         });
-      })
+      });
+
+      describe('client_secret', function () {
+        describe('resetClientSecret', function () {
+          it('should reset the client secret', function (done) {
+            models.User.create({
+              username: 'username',
+              email_address: 'valid@example.com',
+              password: 'keyboardcat'
+            }).complete(function (err, user) {
+              if (err) { throw err; }
+              var oldClientSecret = user.client_secret;
+              user.resetClientSecret().complete(function (err, user) {
+                if (err) { throw err; }
+                expect(user.client_secret).to.be.a('string');
+                expect(user.client_secret).to.not.be(oldClientSecret);
+                done();
+              });
+            });
+          });
+        });
+      });
     });
 
     describe('relationship', function () {
