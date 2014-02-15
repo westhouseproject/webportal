@@ -1,0 +1,7 @@
+Hi <%= name %>,
+
+Your email address has been changed to <%= newEmail %>. If you're not the one who made this change, then please email support at <%= supportEmail %> immediately!
+
+Otherwise, you can safely ignore this email.
+
+- ALIS Web Portal

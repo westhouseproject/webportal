@@ -48,9 +48,13 @@ html(lang='en')
             button.close(type='button' data-dismiss='alert' aria-hidden='true') &times;
             != mdoneline(errorMessage)
 
-        - console.log(messages)
         for successMessage in messages.success || []
           .alert.alert-success.alert-dismissable
+            button.close(type='button' data-dismiss='alert' aria-hidden='true') &times;
+            != mdoneline(successMessage)
+
+        for successMessage in messages.info || []
+          .alert.alert-info.alert-dismissable
             button.close(type='button' data-dismiss='alert' aria-hidden='true') &times;
             != mdoneline(successMessage)
 

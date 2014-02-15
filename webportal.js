@@ -106,9 +106,8 @@ passport.use(new LocalStrategy(
 
 // TODO: have this route flash an error message.
 function ensureAuthenticated(req, res, next) {
-  if (req.isAuthenticated()) {
-    return next();
-  }
+  if (req.isAuthenticated()) { return next(); }
+  req.flash('info', 'You need to be logged in.');
   res.redirect('/');
 }
 
@@ -119,9 +118,8 @@ function ensureAuthenticated(req, res, next) {
 
 // TODO: have this route flash an warning message.
 function ensureUnauthenticated(req, res, next) {
-  if (!req.isAuthenticated()) {
-    return next();
-  }
+  if (!req.isAuthenticated()) { return next(); }
+  req.flash('info', 'You are already logged in.');
   res.redirect('/');
 }
 
@@ -129,9 +127,10 @@ function ensureUnauthenticated(req, res, next) {
  * A middleware used on a route to ensure
  */
 
-// TODO: have this route flash a warning message.
+// TODO: have this route flash a info message.
 function ensureUnverified(req, res, next) {
   if (!req.user || !req.user.isVerified()) { return next(); }
+  req.flash('info', 'You are already verified.');
   res.redirect('/');
 }
 
@@ -463,24 +462,37 @@ app.get(
   }
 );
 
+// TODO: ideally, this should be a put request.
 app.post(
   '/account',
   ensureAuthenticated,
   function (req, res, next) {
-    models
-      .User
-      .find(req.user.id)
+    var previousEmail = req.user.email_address;
+
+    req.user.full_name = req.body.full_name;
+    req.user.email_address = req.body.email_address;
+
+    req.user
+      .save()
       .success(function (user) {
-        user.values.full_name = req.body.full_name;
-        user.values.email_address = req.body.email_address;
-        user
-          .save()
-          .success(function (user) {
-            res.redirect('/account');
-          })
-          .error(function (err) {
-            next(err);
+        if (user.email_address !== previousEmail) {
+          fs.readFile('./email/email-change.txt.lodash', 'utf8', function (err, data) {
+            transport.sendMail({
+              from: 'westhouse@sfu.ca',
+              to: previousEmail,
+              subject: 'Your email address has been changed',
+              text: _.template(data, {
+                name: user.full_name,
+                newEmail: user.email_address,
+                supportEmail: settings.get('supportEmail')
+              })
+            }, function (err, response) {
+              if (err) { return console.error(err); }
+              console.log(response.message);
+            });
           });
+        }
+        res.redirect('/account');
       })
       .error(function (err) {
         next(err);
