@@ -462,6 +462,27 @@ app.get(
   }
 );
 
+app.get(
+  '/accoung/forgot',
+  ensureUnauthenticated,
+  function (req, res) {
+    res.render('account-forgot');
+  }
+);
+
+app.post(
+  '/account/forgot',
+  ensureUnauthenticated,
+  function (req, res, next) {
+    models.User.find({
+      where: [ 'email_address = ?', req.body.email_address ]
+    }).complete(function (err, user) {
+      if (err) { return next(err); }
+      
+    });
+  }
+);
+
 // TODO: ideally, this should be a put request.
 app.post(
   '/account',
@@ -492,6 +513,7 @@ app.post(
             });
           });
         }
+        req.flash('success', 'Your account info has been updated.');
         res.redirect('/account');
       })
       .error(function (err) {

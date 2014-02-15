@@ -4,6 +4,7 @@ var expect = require('expect.js');
 var validator = require('validator');
 var uuid = require('node-uuid');
 var async = require('async');
+var bcrypt = require('bcrypt');
 
 var settings = {};
 try {
@@ -367,6 +368,78 @@ describe('integration tests', function () {
                   })
               })
           })
+      });
+
+      describe('password', function () {
+        it('should allow a user to request that they have their password reset', function (done) {
+          var email = 'valid@example.com';
+          models.User.create({
+            username: 'janedoe',
+            email_address: email,
+            password: 'keyboardcat'
+          }).complete(function (err, user) {
+            if (err) { throw err; }
+            models.User.setResetFlag(email).then(function (user) {
+              expect(validator.isUUID(user.password_reset_code)).to.be(true);
+              expect(user.password_reset_expiry).to.be.a(Date);
+              done();
+            }).catch(function (err) {
+              throw err;
+            })
+          })
+        });
+
+        it('should allow a user to reset their password, given the email address, validation code, and password', function (done) {
+          var email = 'valid@example.com';
+          models.User.create({
+            username: 'johndoe',
+            email_address: email,
+            password: 'keyboardcat'
+          }).complete(function (err, user) {
+            if (err) { throw err; }
+            var oldHash = user.password;
+            models.User.setResetFlag(email).then(function (user) {
+              var newPassword = 'someotherpassword';
+              models.User.resetPassword(user.email_address, user.password_reset_code, newPassword).then(function (user) {
+                expect(user.password).to.not.be(oldHash);
+                bcrypt.compareSync(newPassword, user.password);
+                done();
+              }).catch(function (err) {
+                throw err;
+              })
+            }).catch(function (err) {
+              throw err;
+            });
+          });
+        });
+
+        describe('expired reset', function () {
+          it('should allow a user to reset their password, given the email address, validation code, and password', function (done) {
+            var email = 'valid@example.com';
+            models.User.create({
+              username: 'johndoe',
+              email_address: email,
+              password: 'keyboardcat'
+            }).complete(function (err, user) {
+              if (err) { throw err; }
+              var oldHash = user.password;
+              models.User.setResetFlag(email).then(function (user) {
+                user.password_reset_expiry = new Date(user.password_reset_expiry.getTime() - 1000 * 60 * 60 * 24 * 4);
+                user.save().complete(function (err, user) {
+                  var newPassword = 'someotherpassword';
+                  models.User.resetPassword(user.email_address, user.password_reset_code, newPassword).then(function (user) {
+                    throw new Error('Not supposed to be here.')
+                  }).catch(function (err) {
+                    expect(err.name).to.be('PasswordResetCodeError');
+                    done();
+                  });
+                });
+              }).catch(function (err) {
+                throw err;
+              });
+            });
+          });
+        });
       });
 
       describe('verification', function () {

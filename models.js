@@ -57,6 +57,18 @@ module.exports.define = function (sequelize) {
   VerificationError.prototype = Error.prototype;
 
   /*
+   * Occures when the password reset code is invalid.
+   */
+
+  function PasswordResetCodeError(message) {
+    Error.apply(this, arguments);
+    this.name = 'PasswordResetCodeError';
+    this.message = message;
+    this.verified = false;
+  }
+  PasswordResetCodeError.prototype = Error.prototype;
+
+  /*
    * Floor to the nearest interval of a given date object. E.g. 12:32 will be
    * floored to 12:30 if the interval was 1000 * 60 * 5 = 5 minutes.
    */
@@ -430,7 +442,9 @@ module.exports.define = function (sequelize) {
       type: Sequelize.STRING,
       allowNull: false
     },
-    verification_code: Sequelize.STRING
+    verification_code: Sequelize.STRING,
+    password_reset_code: Sequelize.STRING,
+    password_reset_expiry: Sequelize.DATE
   }, {
     instanceMethods: {
       normalizeUsername: function () {
@@ -492,6 +506,16 @@ module.exports.define = function (sequelize) {
 
       isVerified: function () {
         return this.verification_code == null;
+      },
+
+      /*
+       * Gets rid of the password reset flags.
+       */
+
+      _clearPasswordReset: function () {
+        this.password_reset_code = null;
+        this.password_reset_expiry = null;
+        return this.save();
       }
     },
     classMethods: {
@@ -520,6 +544,49 @@ module.exports.define = function (sequelize) {
             });
           });
 
+        return def.promise;
+      },
+
+      /*
+       * Sets a password's 
+       */
+
+      setResetFlag: function (email) {
+        var def = bluebird.defer();
+        this.find({
+          where: [ 'email_address = ?', email ]
+        }).complete(function (err, user) {
+          if (err) { return def.reject(err); }
+          user.password_reset_code = uuid.v4();
+          user.save().complete(function (err, user) {
+            if (err) { return def.reject(err); }
+            def.resolve(user);
+          })
+        });
+        return def.promise;
+      },
+
+      resetPassword: function (email, resetCode, newPassword) {
+        var def = bluebird.defer();
+        this.find({
+          where: [
+            'email_address = ? AND password_reset_code = ?',
+            email,
+            resetCode
+          ]
+        }).complete(function (err, user) {
+          var errMessage = 'Password reset code has either expired, or is invalid.';
+          var time = new Date();
+          if (err) { return def.reject(err); }
+          if (!user) { return def.reject(new PasswordResetCodeError(errMessage)); }
+          if (user.password_reset_expiry < time) {
+            return def.reject(new PasswordResetCodeError(errMessage));
+          }
+          user.password = newPassword;
+          user.save().complete(function (err, user) {
+            def.resolve(user);
+          })
+        });
         return def.promise;
       }
     },
@@ -577,6 +644,29 @@ module.exports.define = function (sequelize) {
             }
 
             callback(null);
+          },
+          function (callback) {
+            if (user.password_reset_code != null && !validator.isUUID(user.password_reset_code)) {
+              return process.nextTick(function () {
+                callback(new ValidationErrors({
+                  password_reset_code: 'The password reset code must be a UUID token.'
+                }));
+              })
+            }
+            process.nextTick(function () {
+              callback(null);
+            });
+          },
+          function (callback) {
+            if (
+              user.changed('password_reset_code') &&
+              user.password_reset_code != null
+            ) {
+              user.password_reset_expiry = new Date(new Date().getTime() + 1000 * 60 * 60 * 24 * 2);
+            }
+            process.nextTick(function () {
+              callback(null);
+            });
           }
         ], function (err) {
           if (err) {
