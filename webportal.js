@@ -125,13 +125,23 @@ function ensureUnauthenticated(req, res, next) {
 }
 
 /*
- * A middleware used on a route to ensure
+ * A middleware used on a route to ensure that the user isn't verified yet.
  */
 
 // TODO: have this route flash a info message.
 function ensureUnverified(req, res, next) {
   if (!req.user || !req.user.isVerified()) { return next(); }
   req.flash('info', 'You are already verified.');
+  res.redirect('/');
+}
+
+/*
+ * A middleware used on a route to ensure that the user is verified.
+ */
+
+function ensureVerified(req, res, next) {
+  if (!req.user || req.user.isVerified()) { return next(); }
+  req.flash('error', 'You need to be verified.');
   res.redirect('/');
 }
 
@@ -677,6 +687,23 @@ app.post(
     }).complete(function (err, device) {
       if (err) { return next(err); }
       res.redirect('/');
+    });
+  }
+);
+
+app.get(
+  '/consumptions/:uuid',
+  ensureAuthenticated,
+  ensureVerified,
+  function (req, res, next) {
+    var device = req.user.devices.filter(function (device) {
+      return req.params.uuid === device.uuid_token;
+    })[0];
+    if (!device) { return next(); }
+    device.getEnergyReadings(req.query).then(function (readings) {
+      res.json(readings);
+    }).catch(function (err) {
+      next(err);
     });
   }
 );

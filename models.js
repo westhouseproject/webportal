@@ -224,173 +224,259 @@ module.exports.define = function (sequelize) {
         return def.promise;
       },
 
-      // TODO: document this.
-      // TODO: add a convenience feature to aggregate the data.
-      // TODO: rename this to `getEnergyConsumptions`.
-      getEnergyReadings: function (options) {
-        options = options || {};
-
-        options = _.assign({}, options);
-
-        if (/^(false|no|f|0)$/.test(options.summed)) { options.summed = false; }
-
-        // TODO: unit test this.
-        try {
-          options.consumers = JSON.parse(options.consumers);
-          options.consumers = options.consumers.map(function (consumer) {
-            return consumer.toString();
-          });
-        } catch (e) {
-          options.consumers = [];
-        }
-
-        var defaults = {
-          from: new Date(),
-          interval: 60 * 60,
-          granularity: 'raw',
-          consumers: [],
-          summed: true
-        };
-
-        // Override the defaults, based on what the user specified.
-        options = _.assign(defaults, options);
-
-        var energyConsumersQuery = {};
-
-        if (options.consumers.length) {
-          energyConsumersQuery = {
-            where: [ Array(options.consumers.length)
-              .join('.')
-              .split('.')
-              .map(function () {
-                return 'remote_consumer_id = ?'
-              }).join(' OR ') ].concat(options.consumers)
-          };
-        }
-
-        this.getEnergyConsumers(energyConsumersQuery).complete(function (err, consumers) {
-          if (!consumers) { return def.resolve(null); }
-          if (options.granularity === 'raw') {
-            return (function () {
-              var energyConsumptionsQuery = {
-                where: [
-                  Array(consumers.length)
-                    .join('.')
-                    .split('.')
-                    .map(function () {
-                      return 'energy_consumer_id = ?'
-                    }).join(' OR ')
-                ].concat(consumers.map(
-                    function (consumer) {
-                      return consumer.id;
-                    }
-                  )
-                )
-              };
-              EnergyConsumptions.findAll(energyConsumptionsQuery).complete(function (err, consumptions) {
-                if (!consumptions) { return def.resolve(null); }
-                consumptions = _.groupBy(consumptions.map(function (consumption) {
-                  return {
-                    id: _.find(consumers, function (consumer) {
-                      return consumption.energy_consumer_id === consumer.id;
-                    }).remote_consumer_id,
-                    time: consumption.time,
-                    kw: consumption.kw,
-                    kwh: consumption.kwh,
-                    kwh_difference: consumption.kwh_difference
-                  }
-                }), function (consumption) {
-                  return consumption.id;
-                });
-                if (!options.summed) {
-                  return def.resolve(consumptions);
-                }
-                consumptions = Object.keys(consumptions).map(function (key) {
-                  return consumptions[key];
-                });
-                // TODO: handle the cases when only one consumer was selected.
-                consumptions = consumptions.reduce(function (prev, curr) {
-                  return prev.map(function (prevVal, i) {
-                    return {
-                      time: prevVal.time,
-                      kw: prevVal.kw + curr[i].kw,
-                      kwh: prevVal.kwh + curr[i].kwh,
-                      kwh_difference: prevVal.kwh_difference + curr[i].kwh_difference
-                    }
-                  })
-                });
-                def.resolve(consumptions);
-              });
-            })();
-          }
-
-          if (!seriesCollection[options.granularity]) {
-            return def.reject(new Error('Granularity currently not supported'));
-          }
-
-          return (function () {
-            var energyConsumptionsQuery = {
-              where: [
-                Array(consumers.length)
-                  .join('.')
-                  .split('.')
-                  .map(function () {
-                    return 'energy_consumer_id = ?'
-                  }).join(' OR ')
-              ].concat(consumers.map(
-                  function (consumer) {
-                    return consumer.id;
-                  }
-                )
-              )
-            };
-            seriesCollection[options.granularity].model.findAll(energyConsumptionsQuery).complete(function (err, consumptions) {
-              if (!consumptions) { return def.resolve(null); }
-              consumptions = _.groupBy(consumptions.map(function (consumption) {
-                var retval = {
-                  id: _.find(consumers, function (consumer) {
-                    return consumption.energy_consumer_id === consumer.id;
-                  }).remote_consumer_id,
-                  time: consumption.time,
-                  kwh_sum: consumption.kwh_sum,
-                  kwh_average: consumption.kwh_average,
-                  kwh_min: consumption.kwh_min,
-                  kwh_max: consumption.kwh_max
-                };
-                return retval;
-              }), function (consumption) {
-                return consumption.id;
-              });
-              if (!options.summed) {
-                return def.resolve(consumptions);
-              }
-              consumptions = Object.keys(consumptions).map(function (key) {
-                return consumptions[key];
-              });
-              // TODO: handle the cases when only one consumer was selected.
-              consumptions = consumptions.reduce(function (prev, curr) {
-                var mapped = prev.map(function (prevVal, i) {
-                  return {
-                    time: prevVal.time,
-                    kwh_sum: prevVal.kwh_sum + curr[i].kwh_sum,
-                    kwh_average: prevVal.kwh_average + curr[i].kwh_average,
-                    kwh_min: prevVal.kwh_min + curr[i].kwh_min,
-                    kwh_max: prevVal.kwh_max + curr[i].kwh_max
-                  };
-                });
-                mapped.forEach(function (val) {
-                  val.kwh_average = val.kwh_average / mapped.length;
-                });
-                return mapped;
-              });
-              def.resolve(consumptions);
-            });
-          })();
-        });
-
+      _getRawEnergyReadings: function (options) {
         var def = bluebird.defer();
 
+        options = options || {};
+
+        var defaults = {
+          summed: true
+        };
+        options = _.assign(_.assign({}, defaults), options);
+
+        var maxRange = 60;
+
+        if (!options.to) {
+          options.to = Math.floor(new Date().getTime() / 1000)
+        }
+
+        if (!options.from) {
+          options.from = options.to - maxRange;
+        }
+
+        // Truncate the range, to prevent excessive memory use.
+        if (options.to - options.from > maxRange) {
+          options.from = options.to - maxRange;
+        }
+
+        EnergyConsumptions.findAll({
+          where: [
+            'UNIX_TIMESTAMP(time) > ? AND UNIX_TIMESTAMP(time) < ?',
+            options.from,
+            options.to
+          ],
+          order: 'time DESC',
+        }).complete(function (err, consumptions) {
+          if (err) { return def.reject(err); }
+
+          if (!consumptions.length) {
+            return def.resolve(consumptions);
+          }
+
+          consumptions = consumptions.map(function (consumption) {
+            return {
+              id: consumption.energy_consumer_id,
+              time: consumption.time,
+              kw: consumption.kw,
+              kwh: consumption.kwh,
+              kwh_difference: consumption.kwh_difference
+            };
+          });
+
+          var timeset = {};
+
+          consumptions.forEach(function (consumption) {
+            timeset[consumption.time.toString()] = true;
+          });
+
+          consumptions = _.groupBy(consumptions, function (consumption) {
+            return consumption.id;
+          });
+
+          Object.keys(consumptions).forEach(function (key) {
+            var group = consumptions[key];
+            var set = {};
+            group.forEach(function (consumption) {
+              set[consumption.time.toString()] = true;
+            });
+            Object.keys(timeset).forEach(function (k) {
+              if (!set[k]) {
+                group.push({
+                  id: key,
+                  time: new Date(k),
+                  kw: 0,
+                  kwh: 0,
+                  kwh_difference: 0
+                });
+              }
+            });
+            consumptions[key] = group.sort(function (a, b) {
+              return a.time - b.time;
+            });
+          });
+
+          if (!options.summed) {
+            return def.resolve(consumptions);
+          }
+
+          var keys = Object.keys(consumptions);
+
+          var sums = [];
+
+          //console.log(keys);
+          //console.log(consumptions[keys[0]]);
+
+          consumptions = consumptions[keys[0]].map(function (c, i) {
+            var sum = {
+              time: c.time,
+              kw: c.kw,
+              kwh: c.kwh,
+              kwh_difference: c.kwh_difference
+            };
+            return keys.reduce(function (prev, curr) {
+              return {
+                time: prev.time,
+                kw: prev.kw + consumptions[curr][i].kw,
+                kwh: prev.kwh + consumptions[curr][i].kwh,
+                kwh_difference: prev.kwh_difference + consumptions[curr][i].kwh_difference
+              };
+            }, sum);
+          });
+
+          def.resolve(consumptions);
+        });
+
         return def.promise;
+      },
+
+      _getEnergyReadings: function (options) {
+        var def = bluebird.defer();
+
+        options = options || {};
+
+        var defaults = {
+          summed: true,
+          granularity: '1m'
+        };
+        options = _.assign(_.assign({}, defaults), options);
+
+        if (!seriesCollection[options.granularity]) {
+          return def.reject(new Error('Granularity not supported'));
+        }
+
+        var maxRange = Math.floor(seriesCollection[options.granularity].maxRange / 1000);
+
+        if (!options.to) {
+          options.to = Math.floor(new Date().getTime() / 1000)
+        }
+
+        if (!options.from) {
+          options.from = options.to - maxRange;
+        }
+
+        // Truncate the range, to prevent excessive memory use.
+        if (options.to - options.from > maxRange) {
+          options.from = options.to - maxRange;
+        }
+
+        seriesCollection[options.granularity].model.findAll({
+          where: [
+            'UNIX_TIMESTAMP(time) > ? AND UNIX_TIMESTAMP(time) < ?',
+            options.from,
+            options.to
+          ],
+          order: 'time DESC',
+        }).complete(function (err, consumptions) {
+          if (err) { return def.reject(err); }
+
+          consumptions = consumptions.map(function (consumption) {
+            return {
+              id: consumption.energy_consumer_id,
+              time: consumption.time,
+              kwh_sum: consumption.kwh_sum,
+              kwh_average: consumption.kwh_average,
+              kwh_min: consumption.kwh_min,
+              kwh_max: consumption.kwh_max
+            };
+          });
+
+          var timeset = {};
+
+          consumptions.forEach(function (consumption) {
+            timeset[consumption.time.toString()] = true;
+          });
+
+          consumptions = _.groupBy(consumptions, function (consumption) {
+            return consumption.id;
+          });
+
+          Object.keys(consumptions).forEach(function (key) {
+            var group = consumptions[key];
+            var set = {};
+            group.forEach(function (consumption) {
+              set[consumption.time.toString()] = true;
+            });
+            Object.keys(timeset).forEach(function (k) {
+              if (!set[k]) {
+                group.push({
+                  id: key,
+                  time: new Date(k),
+                  kwh_sum: 0,
+                  kwh_average: 0,
+                  kwh_min: 0,
+                  kwh_max: 0
+                });
+              }
+            });
+            consumptions[key] = group.sort(function (a, b) {
+              return a.time - b.time;
+            });
+          });
+
+          if (!options.summed) {
+            return def.resolve(consumptions);
+          }
+
+          var keys = Object.keys(consumptions);
+
+          var sum = [];
+
+          consumptions = consumptions[keys[0]].map(function (c, i) {
+            var sum = {
+              time: c.time,
+              kwh_sum: c.kwh_sum == null || isNaN(c.kwh_sum) ? 0 : c.kwh_sum,
+              kwh_average: c.kwh_average == null || isNaN(c.kwh_average) ? 0 : c.kwh_average,
+              kwh_min: c.kwh_min == null || isNaN(c.kwh_min) ? 0 : c.kwh_min,
+              kwh_max: c.kwh_max == null || isNaN(c.kwh_max) ? 0 : c.kwh_max
+            };
+            return keys.reduce(function (prev, curr) {
+              var c = consumptions[curr][i];
+              var current = {
+                time: c.time,
+                kwh_sum: c.kwh_sum == null || isNaN(c.kwh_sum) ? 0 : c.kwh_sum,
+                kwh_average: c.kwh_average == null || isNaN(c.kwh_average) ? 0 : c.kwh_average,
+                kwh_min: c.kwh_min == null || isNaN(c.kwh_min) ? 0 : c.kwh_min,
+                kwh_max: c.kwh_max == null || isNaN(c.kwh_max) ? 0 : c.kwh_max
+              };
+
+              var retval = {
+                time: prev.time,
+                kwh_sum: prev.kwh_sum + current.kwh_sum,
+                kwh_average: prev.kwh_average + current.kwh_average,
+                kwh_min: Math.min(prev.kwh_min, current.kwh_min),
+                kwh_max: Math.max(prev.kwh_max, current.kwh_max)
+              };
+
+              return retval;
+            }, sum);
+          });
+
+          def.resolve(consumptions);
+        });
+
+        return def.promise;
+      },
+
+      // TODO: document this.
+      getEnergyReadings: function (options) {
+        var options = options || {};
+        options.granularity = options.granularity || 'raw';
+
+        if (options.granularity === 'raw') {
+          return this._getRawEnergyReadings(options);
+        }
+
+        return this._getEnergyReadings(options)
       }
     },
     hooks: {
@@ -1061,14 +1147,17 @@ module.exports.define = function (sequelize) {
     var seriesCollectionMeta = {
       '1m': {
         interval: 1000 * 60,
-        nextGranularity: '5m'
+        nextGranularity: '5m',
+        maxRange: 1000 * 60 * 60
       },
       '5m': {
         interval: 1000 * 60 * 5,
-        nextGranularity: '1h'
+        nextGranularity: '1h',
+        maxRange: 1000 * 60 * 60 * 5
       },
       '1h': {
-        interval: 1000 * 60 * 60
+        interval: 1000 * 60 * 60,
+        maxRange: 1000 * 60 * 60 * 24
       }
     };
 
@@ -1099,6 +1188,8 @@ module.exports.define = function (sequelize) {
         );
 
       }
+
+      seriesCollection[key].maxRange = seriesCollectionMeta[key].maxRange;
 
       done[key] = true;
 
