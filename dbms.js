@@ -1,6 +1,7 @@
 var express = require('express');
 var settings = require('./settings');
 var Sequelize = require('sequelize');
+var async = require('async');
 
 var sequelize = new Sequelize(
   settings.get('database').database,
@@ -16,16 +17,28 @@ var app = express();
 app.use(express.json());
 
 app.get('/consumptions/:uuid', function (req, res, next) {
-  models.ALISDevice.find({
-    where: [ 'uuid_token = ?', req.params.uuid ]
-  }).complete(function (err, device) {
+  async.parallel({
+    user: function (callback) {
+      models.User.find({
+        where: [ 'api_key = ? AND client_secret = ?', req.query.api_key, req.query.client_secret ]
+      }).complete(callback);
+    },
+    device: function (callback) {
+      models.ALISDevice.find({
+        where: [ 'uuid_token = ?', req.params.uuid ]
+      }).complete(callback);
+    }
+  }, function (err, result) {
     if (err) { return next(err); }
-    if (!device) { return next(); }
-    device.getEnergyReadings(req.query).then(function (readings) {
-      res.json(readings);
-    }).catch(function (err) {
-      next(err);
-    })
+    result.device.isOwner(result.user).then(function (isOwner) {
+      if (!isOwner) {
+        return res.send(403, 'You are not allowed to view this data.');
+      }
+      // TODO: sanitize the query.
+      result.device.getEnergyReadings(req.query).then(function (readings) {
+        res.json(readings);
+      }).catch(next);
+    });
   });
 });
 

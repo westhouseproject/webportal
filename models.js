@@ -138,11 +138,17 @@ module.exports.define = function (sequelize) {
 
       isOwner: function (user) {
         var def = bluebird.defer();
-        this.getOwner().then(function (u) {
-          def.resolve(u.id === user.id);
-        }).catch(function (err) {
-          def.reject(err);
-        });
+        if (!user) {
+          process.nextTick(function () {
+            def.resolve(false);
+          });
+        } else {
+          this.getOwner().then(function (u) {
+            def.resolve(u.id === user.id);
+          }).catch(function (err) {
+            def.reject(err);
+          });
+        }
         return def.promise;
       },
 

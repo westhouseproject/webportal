@@ -713,6 +713,23 @@ describe('integration tests', function () {
                 });
               });
             });
+            it('should be able to reject null values passed in for an ownership check', function (done) {
+              models.User.create({
+                username: 'cat',
+                email_address: 'something@something.com',
+                password: 'keyboardcat'
+              }).complete(function (err, u) {
+                if (err) { throw err; }
+                user.createALISDevice().complete(function (err, device) {
+                  device.isOwner(null).then(function (result) {
+                    expect(result).to.be(false);
+                    done();
+                  }).catch(function (err) {
+                    throw err;
+                  })
+                });
+              });
+            });
             it('should allow the creation of an ALIS device, given a common name', function (done) {
               var commonName = 'My Awesome House';
               user.createALISDevice({
