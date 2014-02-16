@@ -305,6 +305,8 @@ app.get(
 );
 
 // TODO: require a password to add a maintainer.
+// TODO: email the added user that they've been added to the maintainers list.
+// TODO: email the admin that they have added a user to the maintainers list.
 app.post(
   '/devices/:uuid/maintainers',
   ensureAuthenticated,
@@ -368,7 +370,7 @@ function sendVerification(user, filename, subject, callback) {
   });
 }
 
-// TODO: send an email with a verification code.
+// TODO: require a password to change the email addres.
 app.post(
   '/register',
   ensureUnauthenticated,
