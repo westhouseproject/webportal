@@ -291,15 +291,52 @@ app.get(
     // This often means that the user does not have access to the device.
     if (!device) { return next(); }
 
-    device.isOwner(req.user).then(function (result) {
-      res.render('dashboard', {
-        device: device,
-        isOwner: result
-      });
-    }).catch(next);
+    device.getUser().complete(function (err, users) {
+      device.isOwner(req.user).then(function (result) {
+        res.render('dashboard', {
+          device: device,
+          isOwner: result,
+          maintainers: users
+        });
+      }).catch(next);
+    });
 
   }
 );
+
+// TODO: require a password to add a maintainer.
+app.post(
+  '/devices/:uuid/maintainers',
+  ensureAuthenticated,
+  function (req, res, next) {
+    models.ALISDevice.find({
+      where: [ 'uuid_token = ?', req.params.uuid ]
+    }).complete(function (err, device) {
+      if (err) { return next(err); }
+      if (!device) {
+        return (function () {
+          req.flash('error', 'The device can\'t be found for some reason.');
+          res.redirect('/');
+        })();
+      }
+      models.User.find({
+        where: [ 'username = ?', req.body.username ]
+      }).complete(function (err, u) {
+        if (err) { return next(err); }
+        if (!u) {
+          return (function () {
+            req.flash('error', 'The username, "' + req.body.username + '", is not associated with any user.');
+            res.redirect('/devices/' + req.params.uuid);
+          })();
+        }
+        device.grantAccessTo(req.user, u).then(function (user) {
+          req.flash('success', 'User successfully added as a maintainer');
+          res.redirect('/devices/' + req.params.uuid);
+        }).catch(next);
+      })
+    });
+  }
+)
 
 app.get(
   '/register',
