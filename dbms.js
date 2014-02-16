@@ -13,7 +13,7 @@ var models = require('./models').define(sequelize);
 
 var app = express();
 
-app.use(express.bodyParser());
+app.use(express.json());
 
 app.get('/consumptions/:uuid', function (req, res, next) {
   models.ALISDevice.find({
@@ -66,7 +66,7 @@ app.use(function (err, req, res, next) {
 });
 
 models.prepare(function () {
-  app.listen(settings.get('port'), function () {
+  app.listen(settings.get('dbms:port'), function () {
     console.log('App: DBMS');
     console.log('Port:', this.address().port);
     console.log('Mode:', settings.get('environment'));

@@ -281,9 +281,13 @@ app.get(
     // This often means that the user does not have access to the device.
     if (!device) { return next(); }
 
-    res.render('dashboard', {
-      device: device
-    });
+    device.isOwner(req.user).then(function (result) {
+      res.render('dashboard', {
+        device: device,
+        isOwner: result
+      });
+    }).catch(next);
+
   }
 );
 
@@ -693,7 +697,7 @@ app.use(function (err, req, res, next) {
 // TODO: handle errors.
 
 models.prepare(function runServer() {
-  app.listen(settings.get('port'), function () {
+  app.listen(settings.get('webportal:port'), function () {
     console.log('App: webportal');
     console.log('Port:', this.address().port);
     console.log('Mode:', settings.get('environment'));
