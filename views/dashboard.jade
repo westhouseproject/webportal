@@ -6,7 +6,10 @@ block styles
 
 block content
   .container-fluid
-    p This feature is not yet implemented
+    h1 #{device.common_name}
+    p
+      strong UUID Token : 
+      | #{device.uuid_token}
 
 block scripts
   script(src='/js/dashboard.js')

@@ -136,6 +136,16 @@ module.exports.define = function (sequelize) {
         return def.promise;
       },
 
+      isOwner: function (user) {
+        var def = bluebird.defer();
+        this.getOwner().then(function (u) {
+          def.resolve(u.id === user.id);
+        }).catch(function (err) {
+          def.reject(err);
+        });
+        return def.promise;
+      },
+
       isAdmin: function (user) {
         var def = bluebird.defer();
         UserALISDevice.find({

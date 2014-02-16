@@ -685,7 +685,34 @@ describe('integration tests', function () {
                 });
               });
             });
-
+            it('should be able to identify the user as the owner', function (done) {
+              user.createALISDevice().complete(function (err, device) {
+                if (err) { throw err; }
+                device.isOwner(user).then(function (result) {
+                  expect(result).to.be(true);
+                  done();
+                }).catch(function (err) {
+                  throw err;
+                });
+              })
+            });
+            it('should be able to reject a non owner as the owner', function (done) {
+              models.User.create({
+                username: 'cat',
+                email_address: 'something@something.com',
+                password: 'keyboardcat'
+              }).complete(function (err, u) {
+                if (err) { throw err; }
+                user.createALISDevice().complete(function (err, device) {
+                  device.isOwner(u).then(function (result) {
+                    expect(result).to.be(false);
+                    done();
+                  }).catch(function (err) {
+                    throw err;
+                  })
+                });
+              });
+            });
             it('should allow the creation of an ALIS device, given a common name', function (done) {
               var commonName = 'My Awesome House';
               user.createALISDevice({
