@@ -4,6 +4,35 @@ block styles
   if !user
     link(rel='stylesheet', href='/css/index-logged-off.css')
 
+  style.
+    /* tell the SVG path to be a thin blue line without any area fill */
+    path {
+      stroke: steelblue;
+      stroke-width: 1;
+      fill: none;
+    }
+    
+    .axis {
+      shape-rendering: crispEdges;
+    }
+
+    .x.axis line {
+      stroke: lightgrey;
+    }
+
+    .x.axis .minor {
+      stroke-opacity: .5;
+    }
+
+    .x.axis path {
+      display: none;
+    }
+
+    .y.axis line, .y.axis path {
+      fill: none;
+      stroke: #000;
+    }
+
 block content
   .container-fluid
     h1 #{device.common_name}
@@ -15,5 +44,14 @@ block content
         strong Client Secret : 
         | #{device.client_secret}
 
+    #graph
+
 block scripts
+  script(src='/components/d3/d3.js')
+
+  script().
+    window.dashboard = {
+      uuid: "#{device.uuid_token}"
+    };
+
   script(src='/js/dashboard.js')

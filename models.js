@@ -313,9 +313,6 @@ module.exports.define = function (sequelize) {
 
           var sums = [];
 
-          //console.log(keys);
-          //console.log(consumptions[keys[0]]);
-
           consumptions = consumptions[keys[0]].map(function (c, i) {
             var sum = {
               time: c.time,
