@@ -871,6 +871,12 @@ describe('integration tests', function () {
               });
             });
           });
+
+          describe('grantAdminAccessTo', function () {
+            xit('should allow an owner to grant admin access to a maintainer', function () {
+              throw new Error('Not yet specified.');
+            });
+          });
         });
       });
     });

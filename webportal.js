@@ -292,13 +292,30 @@ app.get(
     if (!device) { return next(); }
 
     device.getUser().complete(function (err, users) {
-      device.isOwner(req.user).then(function (result) {
-        res.render('dashboard', {
-          device: device,
-          isOwner: result,
-          maintainers: users
-        });
-      }).catch(next);
+      async.each(users, function (user, callback) {
+        async.parallel({
+          isAdmin: function (callback) {
+            device.isAdmin(user).then(function (result) {
+              user.isAdmin = result;
+              callback(null, result);
+            }).catch(callback);
+          },
+          isOwner: function (callback) {
+            device.isOwner(user).then(function (result) {
+              user.isOwner = result;
+              callback(null, result);
+            }).catch(callback);
+          }
+        }, callback);
+      }, function (err) {
+        device.isAdmin(req.user).then(function (result) {
+          res.render('dashboard', {
+            device: device,
+            isAdmin: result,
+            maintainers: users
+          });
+        }).catch(next);
+      });
     });
 
   }
@@ -338,7 +355,36 @@ app.post(
       })
     });
   }
-)
+);
+
+/*
+app.put(
+  '/devices/:uuid/maintainers/:id',
+  ensureAuthenticated,
+  function (req, res, next) {
+    models.ALISDevice.find({
+      where: [ 'uuid_token = ?', req.params.uuid ]
+    }).complete(function (err, device) {
+      if (err) { return next(err); }
+      device.getUser({
+        where: [ 'id = ?', req.params.id ]
+      }).complete(function (err, users) {
+        if (err) { return next(err); }
+        var user = users[0];
+        if (!user) {
+          return (function () {
+            req.flash('error', 'The user does not seem to be associated with the device');
+            req.redirect('/devices/' + req.params.uuid);
+          })();
+        }
+        if (req.body.admin === 'true') {
+          return device.grantAccessTo
+        }
+      });
+    });
+  }
+);
+*/
 
 app.get(
   '/register',

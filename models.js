@@ -156,7 +156,7 @@ module.exports.define = function (sequelize) {
         var def = bluebird.defer();
         UserALISDevice.find({
           where: [
-            'alis_device_id = ? AND user_id = ? AND privilege = ? OR privilege = ?',
+            'alis_device_id = ? AND user_id = ? AND (privilege = ? OR privilege = ?)',
             this.id,
             user.id,
             'admin',
@@ -205,6 +205,14 @@ module.exports.define = function (sequelize) {
           });
         }).catch(function (err) {
           def.reject(err);
+        });
+        return def.promise;
+      },
+
+      revokeAccessFrom: function (admin, user) {
+        var def = bluebird.defer();
+        process.nextTick(function () {
+          def.reject(new Error('Not yet implemented'));
         });
         return def.promise;
       },

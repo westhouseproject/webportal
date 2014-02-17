@@ -1,8 +1,7 @@
 extends layout
 
 block styles
-  if !user
-    link(rel='stylesheet', href='/css/index-logged-off.css')
+  link(rel='stylesheet' href='/css/dashboard.css')
 
   style.
     /* tell the SVG path to be a thin blue line without any area fill */
@@ -47,16 +46,36 @@ block content
     h3 Maintainers
     ul
       for maintainer in maintainers
-        li #{maintainer.full_name || maintainer.username}
+        - console.log(maintainer.id)
+        - console.log(user.id)
+        li
+          | #{maintainer.full_name || maintainer.username}
+          | #{maintainer.id === user.id ? ' (You)' : ''}
+          | #{maintainer.isAdmin ? ' (Admin)' : '' }
+          | #{maintainer.isOwner ? ' (Owner)' : ''}
+          //-
+            if !maintainer.isOwner
+              if maintainer.isAdmin
+                form.form-inline(role='form' action='/devices/#{device.uuid_token}/maintainers/#{}')
+                  input(type='hidden' name='_csrf' value=token)
+                  input.btn.btn-link(type='submit' value='Remove admin rights')
+              else
+                form.form-inline(role='form')
+                  input(type='hidden' name='_csrf' value=token)
+                  input(type='hidden' name='_method' value='put')
+                  input(type='hidden' name='admin' value='true')
+                  input.btn.btn-link(type='submit' value='Grant admin rights')
+              form.form-inline(role='form')
+                input.btn.btn-link(type='submit' value='Revoke access')
 
-
-    form.form-inline(role='form' action='/devices/#{device.uuid_token}/maintainers' method='post')
-      input(type='hidden' name='_csrf' value=token)
-      .form-group
-        label.sr-only(for='username') Username
-        input.form-control(name='username' placeholder='Enter a username')
-      .form-group
-        input.btn.btn-primary(type='submit' value='Add maintainer')
+    if isAdmin
+      form.form-inline(role='form' action='/devices/#{device.uuid_token}/maintainers' method='post')
+        input(type='hidden' name='_csrf' value=token)
+        .form-group
+          label.sr-only(for='username') Username
+          input.form-control(name='username' placeholder='Enter a username')
+        .form-group
+          input.btn.btn-primary(type='submit' value='Add maintainer')
 
     #graph
 
