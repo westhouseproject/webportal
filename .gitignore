@@ -3,3 +3,6 @@ node_modules
 public/components
 out
 .DS_Store
+Capfile
+Vagrantfile
+.vagrant
