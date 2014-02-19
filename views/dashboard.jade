@@ -7,8 +7,33 @@ block styles
     /* tell the SVG path to be a thin blue line without any area fill */
     path {
       stroke: steelblue;
-      stroke-width: 1;
+      stroke-width: 3;
       fill: none;
+    }
+
+    .box {
+      fill: #8EEBEC;
+      stroke: none;
+      opacity: .1;
+    }
+
+    .xline {
+      fill: none;
+      stroke-opacity: 1;
+      stroke: #2C3539;
+      stroke-width: 2;
+    }
+    
+    .title {
+      font-size: 25px;
+      font-weight: bold;
+      fill: #2C3539;
+    }
+
+    .axis.name {
+      font-size: 20px;
+      font-weight: bold;
+      fill: #2C3539;
     }
     
     .axis {
@@ -29,8 +54,15 @@ block styles
 
     .y.axis line, .y.axis path {
       fill: none;
-      stroke: #000;
+      stroke: #2C3539;
+      stroke-width: 2;
     }
+
+    .x.axis text, .y.axis text {
+      font-size: 20px;
+      fill: #2C3539;
+    }	
+
 
 block content
   .container-fluid
@@ -38,10 +70,12 @@ block content
     p
       strong UUID Token : 
       | #{device.uuid_token}
-    if isOwner
-      p
-        strong Client Secret : 
-        | #{device.client_secret}
+    
+    // p
+      strong Client Secret : 
+      | #{device.client_secret}
+
+    #graph
 
     h3 Maintainers
     ul
@@ -77,7 +111,7 @@ block content
         .form-group
           input.btn.btn-primary(type='submit' value='Add maintainer')
 
-    #graph
+
 
 block scripts
   script(src='/components/d3/d3.js')

@@ -1,7 +1,6 @@
 {
   "scripts": {
-    "test": "./node_modules/mocha/bin/mocha",
-    "install": "./node_modules/bower/bin/bower install"
+    "test": "./node_modules/mocha/bin/mocha"
   },
   "devDependencies": {
     "bower": "~1.2.8",
