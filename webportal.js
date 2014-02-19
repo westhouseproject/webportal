@@ -198,7 +198,7 @@ app.use(express.methodOverride());
 app.use(express.cookieParser());
 app.use(express.session({
   secret: settings.get('sessionToken'),
-  //store: new RedisStore()
+  store: new RedisStore()
   //store: new RedisStore({})
 }));
 
@@ -294,6 +294,7 @@ app.get(
     if (!device) { return next(); }
 
     device.getUser().complete(function (err, users) {
+      var isOwner = false;
       async.each(users, function (user, callback) {
         async.parallel({
           isAdmin: function (callback) {
@@ -305,6 +306,7 @@ app.get(
           isOwner: function (callback) {
             device.isOwner(user).then(function (result) {
               user.isOwner = result;
+              if (user.id === req.user.id && result) { isOwner = true; }
               callback(null, result);
             }).catch(callback);
           }
@@ -314,7 +316,8 @@ app.get(
           res.render('dashboard', {
             device: device,
             isAdmin: result,
-            maintainers: users
+            maintainers: users,
+            isOwner: isOwner
           });
         }).catch(next);
       });

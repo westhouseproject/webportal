@@ -71,9 +71,10 @@ block content
       strong UUID Token : 
       | #{device.uuid_token}
     
-    // p
-      strong Client Secret : 
-      | #{device.client_secret}
+    if isOwner
+      p
+        strong Client Secret : 
+        | #{device.client_secret}
 
     #graph
 
