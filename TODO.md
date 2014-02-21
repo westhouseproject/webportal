@@ -2,3 +2,6 @@
 - include a running total on each table
 - write acceptance tests
 - log all actions
+- lint code
+- add production readings
+- add non-energy readings

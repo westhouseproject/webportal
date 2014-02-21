@@ -8,6 +8,31 @@ var bluebird = require('bluebird');
 var _ = require('lodash');
 var settings = require('./settings');
 
+/*
+ * Floor to the nearest interval of a given date object. E.g. 12:32 will be
+ * floored to 12:30 if the interval was 1000 * 60 * 5 = 5 minutes.
+ */
+
+var roundTime = module.exports.roundTime = function roundTime(date, coeff) {
+  var retval = new Date(Math.floor(date.getTime() / coeff) * coeff);
+  return retval;
+};
+
+// TODO: implement this.
+var sinceSunday = module.exports.sinceSunday = function sinceSunday(date) {
+  return date;
+};
+
+// TODO: implement this.
+var sinceFirstOfMonth = module.exports.sinceFirstOfMonth = function sinceFirstOfMonth(date) {
+  return date;
+};
+
+// TODO: implement this.
+var sinceFirstOfYear = module.exports.sinceFirstOfYear = function sinceFirstOfYear(date) {
+  return date;
+};
+
 module.exports.define = function (sequelize) {
 
   // This is where we will be storing our model classes.
@@ -63,16 +88,6 @@ module.exports.define = function (sequelize) {
     this.verified = false;
   }
   VerificationError.prototype = Error.prototype;
-
-  /*
-   * Floor to the nearest interval of a given date object. E.g. 12:32 will be
-   * floored to 12:30 if the interval was 1000 * 60 * 5 = 5 minutes.
-   */
-
-  var roundTime = retval.roundTime = function roundTime(date, coeff) {
-    var retval = new Date(Math.floor(date.getTime() / coeff) * coeff);
-    return retval;
-  };
 
   // TODO: set a custom primary key for both the users and alis_device tables.
 
@@ -395,7 +410,7 @@ module.exports.define = function (sequelize) {
               id: consumption.energy_consumer_id,
               time: consumption.time,
               kwh_sum: consumption.kwh_sum,
-              kwh_average: consumption.kwh_average,
+              kwh_mean: consumption.kwh_mean,
               kwh_min: consumption.kwh_min,
               kwh_max: consumption.kwh_max
             };
@@ -423,7 +438,7 @@ module.exports.define = function (sequelize) {
                   id: key,
                   time: new Date(k),
                   kwh_sum: 0,
-                  kwh_average: 0,
+                  kwh_mean: 0,
                   kwh_min: 0,
                   kwh_max: 0
                 });
@@ -446,7 +461,7 @@ module.exports.define = function (sequelize) {
             var sum = {
               time: c.time,
               kwh_sum: c.kwh_sum == null || isNaN(c.kwh_sum) ? 0 : c.kwh_sum,
-              kwh_average: c.kwh_average == null || isNaN(c.kwh_average) ? 0 : c.kwh_average,
+              kwh_mean: c.kwh_mean == null || isNaN(c.kwh_mean) ? 0 : c.kwh_mean,
               kwh_min: c.kwh_min == null || isNaN(c.kwh_min) ? 0 : c.kwh_min,
               kwh_max: c.kwh_max == null || isNaN(c.kwh_max) ? 0 : c.kwh_max
             };
@@ -455,7 +470,7 @@ module.exports.define = function (sequelize) {
               var current = {
                 time: c.time,
                 kwh_sum: c.kwh_sum == null || isNaN(c.kwh_sum) ? 0 : c.kwh_sum,
-                kwh_average: c.kwh_average == null || isNaN(c.kwh_average) ? 0 : c.kwh_average,
+                kwh_mean: c.kwh_mean == null || isNaN(c.kwh_mean) ? 0 : c.kwh_mean,
                 kwh_min: c.kwh_min == null || isNaN(c.kwh_min) ? 0 : c.kwh_min,
                 kwh_max: c.kwh_max == null || isNaN(c.kwh_max) ? 0 : c.kwh_max
               };
@@ -463,7 +478,7 @@ module.exports.define = function (sequelize) {
               var retval = {
                 time: prev.time,
                 kwh_sum: prev.kwh_sum + current.kwh_sum,
-                kwh_average: prev.kwh_average + current.kwh_average,
+                kwh_mean: prev.kwh_mean + current.kwh_mean,
                 kwh_min: Math.min(prev.kwh_min, current.kwh_min),
                 kwh_max: Math.max(prev.kwh_max, current.kwh_max)
               };
@@ -978,12 +993,25 @@ module.exports.define = function (sequelize) {
    * Returns a function that will be used for merging multiple data points in a
    * higher granularity as well as notify other lower granular models that this
    * model had an update.
+   *
+   * @param intervalFn Function is a function that returns a number, that
+   *   represents the interval to get the data from.
    */
 
-  function createCollector(interval, nextGranularity) {
+  // TODO: expect the interval to be a function and not a number.
+  function createCollector(intervalFn, nextGranularity) {
+
+    /*
+     * @param granularModel Object represents the granular
+     */
     return function (granularModel, time, energy_consumer_id) {
       var self = this;
 
+      // The `interval` parameter is a function. Convert it into a number by
+      // calling it.
+      var interval = intervalFn();
+
+      // Round to the nearest interval.
       var rounded = roundTime(time, interval);
 
       var def = bluebird.defer();
@@ -999,6 +1027,7 @@ module.exports.define = function (sequelize) {
         return promise.then(function () {}, fn);
       };
 
+      // The query to get consumption readings within a given interval.
       var whereClause = [
         'time > ? && time <= ? && energy_consumer_id = ?',
         rounded,
@@ -1006,13 +1035,17 @@ module.exports.define = function (sequelize) {
         energy_consumer_id
       ];
 
+      // Execute the above query to get energy reading data.
       granularModel.model.findAll({
         where: whereClause
       }).success(function (consumptions) {
+        // The statistics. Will be modified later if consumptions.length > 0.
         var statistics = {
           kwh: 0,
-          kwh_average: 0
+          kwh_mean: 0
         };
+
+        // Populate the statistics.
         if (consumptions.length) {
           var kwhs = consumptions.map(function (consumption) {
             return consumption.values[granularModel.readingsPropertyName];
@@ -1020,18 +1053,35 @@ module.exports.define = function (sequelize) {
           statistics.kwh_sum = kwhs.reduce(function (prev, curr) {
             return prev + curr;
           });
-          statistics.kwh_average = statistics.kwh_sum / kwhs.length;
+          statistics.kwh_mean = statistics.kwh_sum / kwhs.length;
           statistics.kwh_min = kwhs.slice().sort()[0];
           statistics.kwh_max = kwhs.slice().sort()[kwhs.length - 1];
         }
 
+        // The query to get the single most recent piece of data from *this*
+        // model. (Remember the above `findAll` call was to the lower
+        // granularity model, **not** this model.)
+        //
+        // In case you are wondering where the time-based filtering is done,
+        // then look no further; the time-based filtering is done in an
+        // if-statement, below.
+        //
+        // TODO: figure out whether or not it is better to filter here, or to
+        //   do so in the if-statement below.
         var query = {
           order: 'time DESC',
           where: [ 'energy_consumer_id = ?', energy_consumer_id ]
         }
 
         self.find(query).success(function (unitData) {
+
+          // A helper function to collect the next set of data from the next
+          // granularity.
+          //
+          // @param prevData Object is the instance object for what we retrieved
+          //   currently.
           function collectNext(prevData) {
+            // The parameters to the collectRecent function.
             var parameters = [
               {
                 model: self,
@@ -1050,6 +1100,9 @@ module.exports.define = function (sequelize) {
             });
           }
 
+          // If the above query didn't get anything, or if the returned value is
+          // much older than the maximum interval then this means that we
+          // should add a new record to the database.
           if (
               !unitData ||
               // For some odd reason, the queried values do not correspond
@@ -1060,17 +1113,16 @@ module.exports.define = function (sequelize) {
                 roundTime(unitData.values.time, interval).getTime()
           ) {
             var tableSpecificProperties = {
-                time: roundTime(time, interval),
-                energy_consumer_id: energy_consumer_id
-              };
+              time: roundTime(time, interval),
+              energy_consumer_id: energy_consumer_id
+            };
 
             self.create(
               _.assign(
                 tableSpecificProperties,
                 statistics
               )
-            )
-            .success(function (unitData) {
+            ).success(function (unitData) {
               if (!nextGranularity) {
                 return def.resolve(unitData);
               }
@@ -1081,7 +1133,6 @@ module.exports.define = function (sequelize) {
             });
 
             return
-
           }
 
           _.assign(unitData.values, statistics);
@@ -1092,7 +1143,10 @@ module.exports.define = function (sequelize) {
             }
 
             collectNext(unitData);
-          }).error(function (err) {
+          })
+          // TODO: merge error calls into a `complete` method call instead of
+          //   `success`-`error` combo.
+          .error(function (err) {
             def.reject(err);
           });
         }).error(function (err) {
@@ -1129,7 +1183,7 @@ module.exports.define = function (sequelize) {
         type: Sequelize.FLOAT,
         defaultValue: 0
       },
-      kwh_average: {
+      kwh_mean: {
         type: Sequelize.FLOAT,
         defaultValue: 0
       },
@@ -1149,6 +1203,10 @@ module.exports.define = function (sequelize) {
   /*
    * Will hold a list of all models that represent a series, in a given time
    * series.
+   *
+   * @property model Object a sequelize model object.
+   * @property maxRange Integer the maximum range that the model get when
+   *   calling getEnergyReadings
    */
 
   var seriesCollection = {};
@@ -1157,18 +1215,44 @@ module.exports.define = function (sequelize) {
 
     var seriesCollectionMeta = {
       '1m': {
-        interval: 1000 * 60,
+        interval: function() { return 1000 * 60 },
         nextGranularity: '5m',
         maxRange: 1000 * 60 * 60
       },
       '5m': {
-        interval: 1000 * 60 * 5,
+        interval: function() { return 1000 * 60 *  5},
         nextGranularity: '1h',
-        maxRange: 1000 * 60 * 60 * 5
+        maxRange: 1000 * 60 * 60 * 2
       },
       '1h': {
-        interval: 1000 * 60 * 60,
+        interval: function() { return 1000 * 60 * 60 },
+        nextGranularity: '1d',
         maxRange: 1000 * 60 * 60 * 24
+      },
+      '1d': {
+        interval: function () { return 1000 * 60 * 60 * 24 },
+        nextGranularity: '1w',
+        maxRange: 1000 * 60 * 60 * 24 * 14
+      },
+      '1w': {
+        interval: function () {
+          return sinceSunday(new Date());
+        },
+        nextGranularity: '1mo',
+        maxRange: 1000 * 60 * 60 * 24 * 7 * 4
+      },
+      '1mo': {
+        interval: function ()  {
+          return sinceFirstOfMonth(new Date());
+        },
+        nextGranularity: '1y',
+        maxRange: 1000 * 60 * 60 * 24 * 365
+      },
+      '1y': {
+        interval: function () {
+          return sinceFirstOfYear(new Date());
+        },
+        maxRange: 1000 * 60 * 60 * 24 * 365 * 10
       }
     };
 
@@ -1216,13 +1300,14 @@ module.exports.define = function (sequelize) {
   })();
 
   /*
-   * Holds information about energy usage by every single devices.
+   * Holds information about energy usage by every single devices. This is
+   * considered the "raw" energy readings.
    */
 
   var EnergyConsumptions = retval.EnergyConsumptions =
     sequelize.define('energy_consumptions', {
-      // TODO: This is being defined from somewhere else as well. Have it be only
-      //   defined from one place.
+      // TODO: This is being defined from somewhere else as well. Have it be
+      //   only defined from one place.
       energy_consumer_id: {
         type: Sequelize.INTEGER(11),
         validate: {
@@ -1253,10 +1338,17 @@ module.exports.define = function (sequelize) {
       freezeTableName: true,
       timestamps: false,
       hooks: {
+        // TODO: move away from using `modelInstance.values.<property>`, to
+        //   going to `modelInstance.<property>`.
+
         beforeValidate: function (consumption, callback) {
           var self = this;
 
           // Look for the most recent entry.
+          //
+          // We are omitting the interval because we only need the previous data
+          // to compute the kWh difference from the current reading, and the
+          // previous one.
           this.find({
             where: [ 'energy_consumer_id = ?', consumption.energy_consumer_id ],
             order: 'time DESC' })
@@ -1272,6 +1364,7 @@ module.exports.define = function (sequelize) {
                 );
                 return callback(err);
               }
+
               consumption.values.kwh_difference =
                 consumption.values.kwh - prev.values.kwh;
             } else {
@@ -1323,6 +1416,8 @@ module.exports.define = function (sequelize) {
     var self = this;
     var def = bluebird.defer();
 
+    // Search for an ALIS device based on the provided UUID token and client
+    // secret.
     ALISDevice.find({
       where: [
         'uuid_token = ? AND client_secret = ?',
@@ -1334,7 +1429,10 @@ module.exports.define = function (sequelize) {
       if (!device) {
         return def.reject(new Error('An ALIS device with the given UUID token and client secret not found'));
       }
+      // Loop through each energy consumption.
       async.map(data.energy_consumptions, function (consumption, callback) {
+        // An ALIS device can arbitrarily add or delete energy consumers. Handle
+        // it here.
         device.findOrCreateEnergyConsumer(consumption.id)
           .then(function (consumer) {
             EnergyConsumptions.create({
