@@ -113,7 +113,6 @@ app.use(express.cookieParser());
 app.use(express.session({
   secret: settings.get('sessionToken'),
   store: new RedisStore()
-  //store: new RedisStore({})
 }));
 
 app.use(function (req, res, next) {
