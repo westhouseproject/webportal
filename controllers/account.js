@@ -1,6 +1,8 @@
 var route = require('./middlewares');
+var async = require('async');
 
 module.exports = function (app) {
+
   app.get(
     '/account',
     route.ensureAuthenticated,

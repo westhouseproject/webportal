@@ -1,6 +1,64 @@
 var route = require('./middlewares');
+var fs = require('fs');
+var passport = require('passport');
+var transport = require('./transport');
+var _ = require('lodash');
+var settings = require('../settings');
+var querystring = require('querystring');
 
-module.exports = function (app) {
+module.exports = function (app, models) {
+
+  /*
+   * Sends a verification code to the specified user.
+   */
+
+  function sendVerification(user, filename, subject, callback) {
+    callback = callback || function () {};
+    fs.readFile(filename, 'utf8', function (err, data) {
+      transport.sendMail({
+        from: 'westhouse@sfu.ca',
+        to: user.email_address,
+        subject: subject,
+        text: _.template(data, {
+          name: user.full_name,
+          link: settings.get('rootHost') + '/register/verify?' + querystring.stringify({
+            email: user.email_address,
+            verification: user.verification_code
+          })
+        })
+      }, callback);
+    });
+  }
+
+  var duplicateErrorChecker = {
+
+    isDuplicate: function (err) {
+      return (
+        err.errno === 1062 &&
+        err.code === 'ER_DUP_ENTRY'
+      );
+    },
+
+    /*
+     * Gets the field and the value that are a duplicate.
+     */
+
+    getField: function (err) {
+      var field = err.message.match(/[a-zA-Z123_]+'$/)[0].slice(0, -1);
+      
+      var firstHalfLen = 'ER_DUP_ENTRY: Duplicate entry \''.length;
+      var secondHalfLen = '\' for key \''.length + field.length + 1;
+
+      var value = err.message.slice(firstHalfLen, -secondHalfLen);
+
+      return {
+        field: field,
+        value: value
+      }
+    }
+
+  };
+
   app.get(
     '/register',
     route.ensureUnauthenticated,
@@ -123,7 +181,7 @@ module.exports = function (app) {
   );
 
   app.get(
-    '/registe r/verify',
+    '/register/verify',
     route.ensureAuthenticated,
     route.ensureUnverified,
     function (req, res, next) {

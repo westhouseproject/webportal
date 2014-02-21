@@ -1,6 +1,7 @@
 var route = require('./middlewares');
+var async = require('async');
 
-module.exports = function (app) {
+module.exports = function (app, models) {
   app.get(
     '/devices/:uuid',
     route.ensureAuthenticated,

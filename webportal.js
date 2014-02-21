@@ -7,16 +7,13 @@ var validator = require('validator');
 var crypto = require('crypto');
 var _ = require('lodash');
 var lessMiddleware = require('less-middleware');
-var nodemailer = require('nodemailer');
 var LocalStrategy = require('passport-local').Strategy;
-var async = require('async');
 var RedisStore = require('connect-redis')(express);
 var marked = require('marked');
 var cheerio = require('cheerio');
 var querystring = require('querystring');
 var fs = require('fs');
 
-// TODO: move all routes into their own controllers.
 // TODO: rename the views to be much more coherent with a given route.
 
 var sequelize = new Sequelize(
@@ -42,15 +39,6 @@ function UserSessionNotFoundError(message) {
   this.name = 'UserSessionNotFoundError';
 }
 UserSessionNotFoundError.prototype = Error.prototype;
-
-/*
- * Used for mailing things out to users.
- */
-
-var transport = nodemailer.createTransport(
-  settings.get('mailer:type'),
-  settings.get('mailer:options')
-);
 
 passport.serializeUser(function (user, done) {
   done(null, user.id);
@@ -99,35 +87,6 @@ passport.use(new LocalStrategy(
       });
   }
 ));
-
-var duplicateErrorChecker = {
-
-  isDuplicate: function (err) {
-    return (
-      err.errno === 1062 &&
-      err.code === 'ER_DUP_ENTRY'
-    );
-  },
-
-  /*
-   * Gets the field and the value that are a duplicate.
-   */
-
-  getField: function (err) {
-    var field = err.message.match(/[a-zA-Z123_]+'$/)[0].slice(0, -1);
-    
-    var firstHalfLen = 'ER_DUP_ENTRY: Duplicate entry \''.length;
-    var secondHalfLen = '\' for key \''.length + field.length + 1;
-
-    var value = err.message.slice(firstHalfLen, -secondHalfLen);
-
-    return {
-      field: field,
-      value: value
-    }
-  }
-
-};
 
 var app = express();
 
@@ -221,31 +180,9 @@ app.use(function (req, res, next) {
 fs.readdirSync('./controllers').forEach(function (file) {
   file = path.resolve(__dirname, 'controllers', file);
   if (fs.lstatSync(file).isFile()) {
-    require(file)(app);
+    require(file)(app, models);
   }
 });
-
-/*
- * Sends a verification code to the specified user.
- */
-
-function sendVerification(user, filename, subject, callback) {
-  callback = callback || function () {};
-  fs.readFile(filename, 'utf8', function (err, data) {
-    transport.sendMail({
-      from: 'westhouse@sfu.ca',
-      to: user.email_address,
-      subject: subject,
-      text: _.template(data, {
-        name: user.full_name,
-        link: settings.get('rootHost') + '/register/verify?' + querystring.stringify({
-          email: user.email_address,
-          verification: user.verification_code
-        })
-      })
-    }, callback);
-  });
-}
 
 function createResetPath(email, code) {
   return '/account/reset-password?' + querystring.stringify({
