@@ -5,3 +5,6 @@
 - lint code
 - add production readings
 - add non-energy readings
+- soft-code the schemas
+  - We are only limited to energy consumption readings. However, in the future, we will have many other different types of readings.
+  - Have should have them all be a part of the same tables, but with a flag that indicates what kind of a rading it is.

@@ -999,6 +999,8 @@ module.exports.define = function (sequelize) {
    */
 
   // TODO: expect the interval to be a function and not a number.
+  // TODO: expand this function to work with other types of readings, such as
+  //   energy production, water use, and gas use.
   function createCollector(intervalFn, nextGranularity) {
 
     /*
