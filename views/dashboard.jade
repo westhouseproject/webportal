@@ -71,17 +71,16 @@ block content
       strong UUID Token : 
       | #{device.uuid_token}
     
-    // p
-      strong Client Secret : 
-      | #{device.client_secret}
+    if isOwner
+      p
+        strong Client Secret : 
+        | #{device.client_secret}
 
     #graph
 
     h3 Maintainers
     ul
       for maintainer in maintainers
-        - console.log(maintainer.id)
-        - console.log(user.id)
         li
           | #{maintainer.full_name || maintainer.username}
           | #{maintainer.id === user.id ? ' (You)' : ''}
