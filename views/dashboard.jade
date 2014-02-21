@@ -81,8 +81,6 @@ block content
     h3 Maintainers
     ul
       for maintainer in maintainers
-        - console.log(maintainer.id)
-        - console.log(user.id)
         li
           | #{maintainer.full_name || maintainer.username}
           | #{maintainer.id === user.id ? ' (You)' : ''}
