@@ -6,7 +6,7 @@ var async = require('async');
 var bcrypt = require('bcrypt');
 var bluebird = require('bluebird');
 var _ = require('lodash');
-var settings = require('./settings');
+var settings = require('../settings');
 
 /*
  * Floor to the nearest interval of a given date object. E.g. 12:32 will be
@@ -18,18 +18,20 @@ var roundTime = module.exports.roundTime = function roundTime(date, coeff) {
   return retval;
 };
 
+// 
+
 // TODO: implement this.
-var sinceSunday = module.exports.sinceSunday = function sinceSunday(date) {
+var sunday = module.exports.sinceSunday = function sinceSunday(date) {
   return date;
 };
 
 // TODO: implement this.
-var sinceFirstOfMonth = module.exports.sinceFirstOfMonth = function sinceFirstOfMonth(date) {
+var firstOfMonth = module.exports.sinceFirstOfMonth = function sinceFirstOfMonth(date) {
   return date;
 };
 
 // TODO: implement this.
-var sinceFirstOfYear = module.exports.sinceFirstOfYear = function sinceFirstOfYear(date) {
+var firstOfYear = module.exports.sinceFirstOfYear = function sinceFirstOfYear(date) {
   return date;
 };
 
@@ -95,12 +97,12 @@ module.exports.define = function (sequelize) {
    * The devices that consume energy.
    */
 
-  var EnergyConsumer = retval.EnergyConsumer = sequelize.define('energy_consumer', {
+  var ReadPoint = retval.ReadPoint = sequelize.define('read_point', {
     name: Sequelize.STRING,
     /*
      * This is the unique identifier represented by the ALIS device.
      */
-    remote_consumer_id: {
+    remote_read_point_id: {
       type: Sequelize.STRING,
       allowNull: false
     }
@@ -232,21 +234,21 @@ module.exports.define = function (sequelize) {
         return def.promise;
       },
 
-      findOrCreateEnergyConsumer: function (consumerID) {
+      findOrCreateReadPoint: function (readPointID) {
         var def = bluebird.defer();
         var self = this;
-        this.getEnergyConsumers({
-          where: [ 'remote_consumer_id = ?', consumerID ]
-        }).complete(function (err, consumers) {
+        this.getReadPoints({
+          where: [ 'remote_read_point_id = ?', readPointID ]
+        }).complete(function (err, readPoints) {
           if (err) { return def.reject(err); }
-          if (consumers[0]) { return def.resolve(consumers[0]); }
-          EnergyConsumer.create({
-            remote_consumer_id: consumerID
-          }).complete(function (err, consumer) {
+          if (readPoints[0]) { return def.resolve(readPoints[0]); }
+          ReadPoint.create({
+            remote_read_point_id: readPointID
+          }).complete(function (err, readPoint) {
             if (err) { def.reject(err); }
-            self.addEnergyConsumer(consumer).complete(function (err, consumer) {
+            self.addReadPoint(readPoint).complete(function (err, readPoint) {
               if (err) { def.reject(err); }
-              def.resolve(consumer);
+              def.resolve(readPoint);
             });
           });
         });
@@ -278,7 +280,7 @@ module.exports.define = function (sequelize) {
           options.from = options.to - maxRange;
         }
 
-        EnergyConsumptions.findAll({
+        Reading.findAll({
           where: [
             'UNIX_TIMESTAMP(time) > ? AND UNIX_TIMESTAMP(time) < ?',
             options.from,
@@ -288,17 +290,17 @@ module.exports.define = function (sequelize) {
         }).complete(function (err, consumptions) {
           if (err) { return def.reject(err); }
 
-          if (!consumptions.length) {
-            return def.resolve(consumptions);
+          if (!readings.length) {
+            return def.resolve(readings);
           }
 
-          consumptions = consumptions.map(function (consumption) {
+          readings = readings.map(function (reading) {
             return {
-              id: consumption.energy_consumer_id,
-              time: consumption.time,
-              kw: consumption.kw,
-              kwh: consumption.kwh,
-              kwh_difference: consumption.kwh_difference
+              id: reading.read_point_id,
+              time: reading.time,
+              kw: reading.kw,
+              kwh: reading.kwh,
+              kwh_difference: reading.kwh_difference
             };
           });
 
@@ -407,7 +409,7 @@ module.exports.define = function (sequelize) {
 
           consumptions = consumptions.map(function (consumption) {
             return {
-              id: consumption.energy_consumer_id,
+              id: consumption.read_point_id,
               time: consumption.time,
               kwh_sum: consumption.kwh_sum,
               kwh_mean: consumption.kwh_mean,
@@ -1006,7 +1008,7 @@ module.exports.define = function (sequelize) {
     /*
      * @param granularModel Object represents the granular
      */
-    return function (granularModel, time, energy_consumer_id) {
+    return function (granularModel, time, read_point_id) {
       var self = this;
 
       // The `interval` parameter is a function. Convert it into a number by
@@ -1029,12 +1031,12 @@ module.exports.define = function (sequelize) {
         return promise.then(function () {}, fn);
       };
 
-      // The query to get consumption readings within a given interval.
+      // The query to get readings within a given interval.
       var whereClause = [
-        'time > ? && time <= ? && energy_consumer_id = ?',
+        'time > ? && time <= ? && read_point_id = ?',
         rounded,
         time,
-        energy_consumer_id
+        read_point_id
       ];
 
       // Execute the above query to get energy reading data.
@@ -1072,7 +1074,7 @@ module.exports.define = function (sequelize) {
         //   do so in the if-statement below.
         var query = {
           order: 'time DESC',
-          where: [ 'energy_consumer_id = ?', energy_consumer_id ]
+          where: [ 'read_point_id = ?', read_point_id ]
         }
 
         self.find(query).success(function (unitData) {
@@ -1090,7 +1092,7 @@ module.exports.define = function (sequelize) {
                 readingsPropertyName: 'kwh_sum'
               },
               prevData.values.time,
-              energy_consumer_id
+              read_point_id
             ];
 
             nextGranularity
@@ -1116,7 +1118,7 @@ module.exports.define = function (sequelize) {
           ) {
             var tableSpecificProperties = {
               time: roundTime(time, interval),
-              energy_consumer_id: energy_consumer_id
+              read_point_id: read_point_id
             };
 
             self.create(
@@ -1171,7 +1173,7 @@ module.exports.define = function (sequelize) {
 
   function createModel(tableName, interval, nextGranularity) {
     return sequelize.define(tableName, {
-      energy_consumer_id: {
+      read_point_id: {
         type: Sequelize.INTEGER(11),
         validate: {
           notNull: true
@@ -1238,21 +1240,21 @@ module.exports.define = function (sequelize) {
       },
       '1w': {
         interval: function () {
-          return sinceSunday(new Date());
+          return sunday(new Date());
         },
         nextGranularity: '1mo',
         maxRange: 1000 * 60 * 60 * 24 * 7 * 4
       },
       '1mo': {
         interval: function ()  {
-          return sinceFirstOfMonth(new Date());
+          return firstOfMonth(new Date());
         },
         nextGranularity: '1y',
         maxRange: 1000 * 60 * 60 * 24 * 365
       },
       '1y': {
         interval: function () {
-          return sinceFirstOfYear(new Date());
+          return firstOfYear(new Date());
         },
         maxRange: 1000 * 60 * 60 * 24 * 365 * 10
       }
@@ -1306,11 +1308,11 @@ module.exports.define = function (sequelize) {
    * considered the "raw" energy readings.
    */
 
-  var EnergyConsumptions = retval.EnergyConsumptions =
+  var Reading = retval.Reading =
     sequelize.define('energy_consumptions', {
       // TODO: This is being defined from somewhere else as well. Have it be
       //   only defined from one place.
-      energy_consumer_id: {
+      read_point_id: {
         type: Sequelize.INTEGER(11),
         validate: {
           notNull: true
@@ -1352,41 +1354,41 @@ module.exports.define = function (sequelize) {
           // to compute the kWh difference from the current reading, and the
           // previous one.
           this.find({
-            where: [ 'energy_consumer_id = ?', consumption.energy_consumer_id ],
+            where: [ 'read_point_id = ?', consumption.read_point_id ],
             order: 'time DESC' })
           .success(function (prev) {
             if (prev) {
               // We want our data to be inserted in chronological order. Throw
               // an error if anything screws up.
-              if (prev.values.time > consumption.values.time) {
+              if (prev.values.time > reading.values.time) {
                 var err = new Error(
-                  'Current time: ' + consumption.values.time + '\n' +
+                  'Current time: ' + reading.values.time + '\n' +
                   'Previous time: ' + prev.values.time + '\n\n' +
                   'Current time must be greater than previous time'
                 );
                 return callback(err);
               }
 
-              consumption.values.kwh_difference =
-                consumption.values.kwh - prev.values.kwh;
+              reading.values.kwh_difference =
+                reading.values.kwh - prev.values.kwh;
             } else {
-              consumption.values.kwh_difference = consumption.values.kwh
+              reading.values.kwh_difference = reading.values.kwh
             }
 
-            callback(null, consumption);
+            callback(null, reading);
           }).error(callback);
         },
-        afterCreate: function (consumption, callback) {
+        afterCreate: function (reading, callback) {
           seriesCollection['1m'].model.collectRecent(
             {
               model: this,
               readingsPropertyName: 'kwh_difference'
             }, 
-            consumption.time,
-            consumption.energy_consumer_id
+            reading.time,
+            reading.read_point_id
           )
           .success(function () {
-            callback(null, consumption);
+            callback(null, reading);
           })
           .error(callback);
         }
@@ -1401,20 +1403,34 @@ module.exports.define = function (sequelize) {
    *       "time": ...,
    *       "uuid_token": ...,
    *       "client_secret": ...,
-   *       "energy_consumptions": [
-   *         {
-   *           remote_consumer_id: ...
-   *           kw: ...
-   *           kwh: ...
-   *         }
+   *       "readings": {
+   *         "energy_consumption": [
+   *           {
+   *             "remote_read_point_id": ...,
+   *             "value": ...
+   *           },
+   *           ...
+   *         ],
+   *         "energy_production": [
+   *           {
+   *             "remote_read_point_id": ...,
+   *             "value": ...
+   *           }
+   *         ],
+   *         "water_use": [
+   *           {
+   *             "remote_read_point_id": ...,
+   *             "value": ....
+   *           },
+   *         ],
    *         ...
-   *       ]
+   *       }
    *     }
    */
 
   // Note: Because this method is being overridden, it may mean that bugs may
   // arise. So far, there doesn't seem to be any, so let's keep this overridden.
-  EnergyConsumptions.bulkCreate = function (data) {
+  Reading.bulkCreate = function (data) {
     var self = this;
     var def = bluebird.defer();
 
@@ -1432,16 +1448,16 @@ module.exports.define = function (sequelize) {
         return def.reject(new Error('An ALIS device with the given UUID token and client secret not found'));
       }
       // Loop through each energy consumption.
-      async.map(data.energy_consumptions, function (consumption, callback) {
-        // An ALIS device can arbitrarily add or delete energy consumers. Handle
+      async.map(data.energy_readings, function (reading, callback) {
+        // An ALIS device can arbitrarily add or delete read points. Handle
         // it here.
-        device.findOrCreateEnergyConsumer(consumption.id)
-          .then(function (consumer) {
-            EnergyConsumptions.create({
-              energy_consumer_id: consumer.id,
+        device.findOrCreateReadPoint(reading.id)
+          .then(function (readPoint) {
+            Reading.create({
+              read_point_id: readPoint.id,
               time: data.time,
-              kw: consumption.kw,
-              kwh: consumption.kwh
+              kw: reading.kw,
+              kwh: reading.kwh
             }).success(function (con) {
               callback(null, con);
             }).error(function (err) {
@@ -1453,9 +1469,9 @@ module.exports.define = function (sequelize) {
           }).catch(function (err) {
             throw err;
           });
-      }, function (err, consumptions) {
+      }, function (err, readings) {
         if (err) { return def.reject(err); }
-        def.resolve(consumptions);
+        def.resolve(readings);
       });
     });
     return def.promise;
@@ -1463,8 +1479,8 @@ module.exports.define = function (sequelize) {
 
   // Associations.
 
-  ALISDevice.hasMany(EnergyConsumer, {
-    as: 'EnergyConsumers',
+  ALISDevice.hasMany(ReadPoint, {
+    as: 'ReadPoints',
     foreignKey: 'alis_device_id'
   });
 

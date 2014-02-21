@@ -1129,15 +1129,15 @@ describe('integration tests', function () {
       });
     });
 
-    describe('findOrCreateEnergyConsumer', function () {
+    describe('findOrCreateReadPoint', function () {
       it('should create a consumer, if one wasn\'t found', function (done) {
         user.createALISDevice().complete(function (err, alisDevice) {
           if (err) { throw err; }
-          var consumerId = 'hello,world';
-          alisDevice.findOrCreateEnergyConsumer(consumerId).then(function (consumer) {
-            alisDevice.getEnergyConsumers().complete(function (err, consumers) {
+          var readPointId = 'hello,world';
+          alisDevice.findOrCreateReadPoint(readPointId).then(function (consumer) {
+            alisDevice.getReadPoints().complete(function (err, consumers) {
               if (err) { throw err; }
-              expect(consumers[0].remote_consumer_id).to.be(consumerId);
+              expect(consumers[0].remote_read_point_id).to.be(readPointId);
               done();
             });
           }).catch(function (err) {
@@ -1149,14 +1149,14 @@ describe('integration tests', function () {
       it('should find a consumer, if one was found', function (done) {
         user.createALISDevice().complete(function (err, alisDevice) {
           if (err) { throw err; }
-          var consumerId = 'hello,world';
-          alisDevice.findOrCreateEnergyConsumer(consumerId).then(function (consumer) {
-            alisDevice.getEnergyConsumers().complete(function (err, consumers) {
+          var readPointId = 'hello,world';
+          alisDevice.findOrCreateReadPoint(readPointId).then(function (consumer) {
+            alisDevice.getReadPoints().complete(function (err, consumers) {
               if (err) { throw err; }
               alisDevice
-                .findOrCreateEnergyConsumer(consumers[0].remote_consumer_id)
+                .findOrCreateReadPoint(consumers[0].remote_read_point_id)
                 .then(function (consumer) {
-                  expect(consumers[0].remote_consumer_id).to.be(consumerId);
+                  expect(consumers[0].remote_read_point_id).to.be(readPointId);
                   done();
                 })
                 .catch(function (err) {
@@ -1206,11 +1206,11 @@ describe('integration tests', function () {
     // TODO: test the data that is being read from two different ALIS devices.
 
     describe('bulkCreate', function () {
-      it('initialize new energy consumer rows given consumer ids that don\'t match anything on record', function (done) {
-        models.EnergyConsumer.findAll({}).complete(function (err, consumers) {
+      xit('initialize new energy consumer rows given consumer ids that don\'t match anything on record', function (done) {
+        models.ReadPoint.findAll({}).complete(function (err, consumers) {
           if (err) { throw err; }
           expect(consumers.length).to.be(0);
-          models.EnergyConsumptions.bulkCreate({
+          models.ReadPoint.bulkCreate({
             time: new Date(),
             uuid_token: device.uuid_token,
             client_secret: device.client_secret,
@@ -1231,8 +1231,8 @@ describe('integration tests', function () {
                 kwh: 0.14234
               }
             ]
-          }).then(function (consumptions) {
-            expect(consumptions.length).to.be(3);
+          }).then(function (readings) {
+            expect(readings.length).to.be(3);
             models.EnergyConsumer.findAll({}).complete(function (err, consumers) {
               expect(consumers.length).to.be(3);
               done();
