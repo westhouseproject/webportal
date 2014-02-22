@@ -13,21 +13,7 @@ var marked = require('marked');
 var cheerio = require('cheerio');
 var querystring = require('querystring');
 var fs = require('fs');
-
-// TODO: rename the views to be much more coherent with a given route.
-
-var sequelize = new Sequelize(
-  settings.get('database:database'),
-  settings.get('database:username'),
-  settings.get('database:password'),
-  settings.get('database:sequelizeSettings')
-);
-
-/*
- * Prepare the models, so that we can store them in their respective tables.
- */
-
-var models = require('./models').define(sequelize);
+var models = require('./models');
 
 /*
  * An error that is thrown when the user ID in the session does not match
