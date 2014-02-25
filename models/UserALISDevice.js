@@ -195,6 +195,11 @@ var UserALISDevice = module.exports = seq.define('user_alis_device', {
     /*
      * Checks to see whether or not the specified user is an admin of a specfied
      * device.
+     *
+     * @param user Object an instance of a User model.
+     * @param device Object an isntance of a Device model.
+     *
+     * @returns true if the user is either and admin or owner, false otherwise.
      */
 
     isAdmin: function (user, device) {
