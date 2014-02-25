@@ -1,10 +1,11 @@
-- rename all instances of the word `average` to `mean`. Average was trying to imply `mean`, but not always *does* "average" imply "mean"; it can also imply the median
 - include a running total on each table
 - write acceptance tests
 - log all actions
 - lint code
-- add production readings
-- add non-energy readings
+- refactor the code so that a more general form of reading is accepted
 - soft-code the schemas
   - We are only limited to energy consumption readings. However, in the future, we will have many other different types of readings.
-  - Have should have them all be a part of the same tables, but with a flag that indicates what kind of a rading it is.
+  - Have them all be a part of the same tables, but with a flag that indicates what kind of a reading it is
+- rename the `models` folder to `db`, and move all model classes to `db/models`
+- document the source code. Maybe using JavaDoc for JavaScript. YUIDoc seems promising
+- require a password to change ownership

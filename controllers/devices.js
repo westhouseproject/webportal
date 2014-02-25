@@ -1,7 +1,8 @@
 var route = require('./middlewares');
 var async = require('async');
+var models = require('../models');
 
-module.exports = function (app, models) {
+module.exports = function (app) {
   app.get(
     '/devices/:uuid',
     route.ensureAuthenticated,
@@ -18,24 +19,23 @@ module.exports = function (app, models) {
         async.each(users, function (user, callback) {
           async.parallel({
             isAdmin: function (callback) {
-              device.isAdmin(user).then(function (result) {
+              models.UserALISDevice.isAdmin(user, device).then(function (isAdmin) {
                 user.isAdmin = result;
-                callback(null, result);
+                callback(null, isAdmin);
               }).catch(callback);
             },
             isOwner: function (callback) {
-              device.isOwner(user).then(function (result) {
-                user.isOwner = result;
-                if (user.id === req.user.id && result) { isOwner = true; }
-                callback(null, result);
+              models.UserALISDevice.isOwner(user, device).then(function (isOwner) {
+                user.isOwner = isOwner;
+                callback(null, isOwner);
               }).catch(callback);
             }
           }, callback);
         }, function (err) {
-          device.isAdmin(req.user).then(function (result) {
+          models.UserALISDevice.isAdmin(req.user, device).then(function (isAdmin) {
             res.render('dashboard', {
               device: device,
-              isAdmin: result,
+              isAdmin: isAdmin,
               maintainers: users,
               isOwner: isOwner
             });
