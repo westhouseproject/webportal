@@ -5,8 +5,9 @@ var transport = require('./transport');
 var _ = require('lodash');
 var settings = require('../settings');
 var querystring = require('querystring');
+var models = require('../models');
 
-module.exports = function (app, models) {
+module.exports = function (app) {
 
   /*
    * Sends a verification code to the specified user.

@@ -165,7 +165,7 @@ app.use(function (req, res, next) {
 fs.readdirSync('./controllers').forEach(function (file) {
   file = path.resolve(__dirname, 'controllers', file);
   if (fs.lstatSync(file).isFile()) {
-    require(file)(app, models);
+    require(file)(app);
   }
 });
 
