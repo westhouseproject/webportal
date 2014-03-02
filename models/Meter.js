@@ -8,12 +8,16 @@ var seq = require('./seq');
  * The devices that consume energy.
  */
 
-module.exports = seq.define('read_point', {
+module.exports = seq.define('meter', {
+  type: {
+    type: Sequelize.STRING,
+    allowNull: false
+  },
   name: Sequelize.STRING,
   /*
    * This is the unique identifier represented by the ALIS device.
    */
-  remote_read_point_id: {
+  remote_meter_id: {
     type: Sequelize.STRING,
     allowNull: false
   }

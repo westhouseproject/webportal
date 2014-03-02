@@ -9,6 +9,8 @@ var bluebird = require('bluebird');
 var _ = require('lodash');
 var settings = require('../settings');
 
+// TODO: rename "ALISDevice" to hub.
+
 /*
  * Floor to the nearest interval of a given date object. E.g. 12:32 will be
  * floored to 12:30 if the interval was 1000 * 60 * 5 = 5 minutes.
@@ -42,7 +44,7 @@ var seq = module.exports.seq = require('./seq');
 // This is where we will be storing our model classes.
 //var retval = {};
 
-var ReadPoint = module.exports.ReadPoint = require('./ReadPoint');
+var Meter = module.exports.Meter = require('./Meter');
 var UserALISDevice = module.exports.UserALISDevice = require('./UserALISDevice');
 var ALISDevice = module.exports.ALISDevice = require('./ALISDevice');
 var User = module.exports.User = require('./User');
@@ -55,8 +57,8 @@ User.hasMany(ALISDevice, {
   foreignKey: 'user_id'
 });
 
-ALISDevice.hasMany(ReadPoint, {
-  as: 'ReadPoints',
+ALISDevice.hasMany(Meter, {
+  as: 'Meters',
   foreignKey: 'alis_device_id'
 });
 
@@ -83,7 +85,7 @@ function createCollector(intervalFn, nextGranularity) {
   /*
    * @param granularModel Object represents the granular
    */
-  return function (granularModel, time, read_point_id) {
+  return function (granularModel, time, meter_id) {
     var self = this;
 
     // The `interval` parameter is a function. Convert it into a number by
@@ -108,10 +110,10 @@ function createCollector(intervalFn, nextGranularity) {
 
     // The query to get readings within a given interval.
     var whereClause = [
-      'time > ? && time <= ? && read_point_id = ?',
+      'time > ? && time <= ? && meter_id = ?',
       rounded,
       time,
-      read_point_id
+      meter_id
     ];
 
     // Execute the above query to get energy reading data.
@@ -149,7 +151,7 @@ function createCollector(intervalFn, nextGranularity) {
       //   do so in the if-statement below.
       var query = {
         order: 'time DESC',
-        where: [ 'read_point_id = ?', read_point_id ]
+        where: [ 'meter_id = ?', meter_id ]
       }
 
       self.find(query).success(function (unitData) {
@@ -167,7 +169,7 @@ function createCollector(intervalFn, nextGranularity) {
               readingsPropertyName: 'kwh_sum'
             },
             prevData.values.time,
-            read_point_id
+            meter_id
           ];
 
           nextGranularity
@@ -193,7 +195,7 @@ function createCollector(intervalFn, nextGranularity) {
         ) {
           var tableSpecificProperties = {
             time: roundTime(time, interval),
-            read_point_id: read_point_id
+            meter_id: meter_id
           };
 
           self.create(
@@ -248,7 +250,7 @@ function createCollector(intervalFn, nextGranularity) {
 
 function createModel(tableName, interval, nextGranularity) {
   return seq.define(tableName, {
-    read_point_id: {
+    meter_id: {
       type: Sequelize.INTEGER(11),
       validate: {
         notNull: true
@@ -384,10 +386,10 @@ var seriesCollection = {};
  */
 
 var Reading = module.exports.Reading =
-  seq.define('energy_consumptions', {
+  seq.define('readings', {
     // TODO: This is being defined from somewhere else as well. Have it be
     //   only defined from one place.
-    read_point_id: {
+    meter_id: {
       type: Sequelize.INTEGER(11),
       validate: {
         notNull: true
@@ -401,18 +403,24 @@ var Reading = module.exports.Reading =
       }
     },
 
-    kw: {
-      type: Sequelize.FLOAT,
-      defaultValue: 0
-    },
-    kwh: {
-      type: Sequelize.FLOAT,
-      defaultValue: 0
-    },
-    kwh_difference: {
+    // kw: {
+    //   type: Sequelize.FLOAT,
+    //   defaultValue: 0
+    // },
+    // kwh: {
+    //   type: Sequelize.FLOAT,
+    //   defaultValue: 0
+    // },
+    // kwh_difference: {
+    //   type: Sequelize.FLOAT,
+    //   defaultValue: 0
+    // }
+
+    value: {
       type: Sequelize.FLOAT,
       defaultValue: 0
     }
+
   }, {
     freezeTableName: true,
     timestamps: false,
@@ -429,7 +437,7 @@ var Reading = module.exports.Reading =
         // to compute the kWh difference from the current reading, and the
         // previous one.
         this.find({
-          where: [ 'read_point_id = ?', consumption.read_point_id ],
+          where: [ 'meter_id = ?', consumption.meter_id ],
           order: 'time DESC' })
         .success(function (prev) {
           if (prev) {
@@ -460,7 +468,7 @@ var Reading = module.exports.Reading =
             readingsPropertyName: 'kwh_difference'
           }, 
           reading.time,
-          reading.read_point_id
+          reading.meter_id
         )
         .success(function () {
           callback(null, reading);
@@ -469,6 +477,140 @@ var Reading = module.exports.Reading =
       }
     }
   });
+
+var EnergyConsumption = module.exports.EnergyConsumption =
+  seq.define('energy_consumptions', {
+    meter_id: {
+      type: Sequelize.INTEGER(11),
+      validate: {
+        notNull: true
+      }
+    },
+
+    time: {
+      type: Sequelize.DATE,
+      validate: {
+        notNull: true
+      }
+    },
+
+    kw: {
+      type: Sequelize.FLOAT,
+      defaultValue: 0
+    },
+
+    kwh: {
+      type: Sequelize.FLOAT,
+      defaultValue: 0
+    },
+
+    kwh_difference: {
+      type: Sequelize.FLOAT,
+      defaultValue: 0
+    }
+  }, {
+    freezeTableName: true,
+    timestamps: false,
+    hooks: {
+      beforeValidate: function (consumption, callback) {
+        var self = this;
+
+        // Find the most recently entered energy consumption data.
+        this.find({
+          where: [
+            'meter_id = ?',
+            meter.id
+          ],
+          orderBy: 'time DESC'
+        }).complete(function (err, prevConsumption) {
+          if (err) { return callback(err); }
+          prevConsumption = prevConsumption || { kwh: 0 }
+          // Insert a new piece of consumption data.
+          consumption.kwh_difference = consumption.kwh - prevConsumption.kwh;
+          callback(null, consumption);
+          // self.create({
+          //   meter_id: meter.id,
+          //   time: data.time,
+          //   kw: consumption.kw,
+          //   kwh: consumption.kwh,
+          //   kwh_difference: consumption.kwh - prevConsumption.kwh
+          // }).complete(function (err, newConsumption) {
+          //   if (err) { return callback(err); }
+          //   // Return the parsed new piece of data.
+          //   callback(null)
+          // });
+        });
+      }
+    }
+  })
+
+/*
+ * Creates energy readings in the database, and converts the current kwh reading
+ * into a difference since the last reading.
+ *
+ * The data takes on the format of
+ *
+ *     {
+ *       "time": ...,
+ *       "uuid_token": ...,
+ *       "client_secret": ...,
+ *       "consumptions": [
+ *         {
+ *           "remote_meter_id": ...,
+ *           "kw": ...,
+ *           "kwh": ...
+ *         }
+ *       ]
+ *     }
+ */
+
+module.exports.createAndParseEnergyReadings = function (data) {
+  var def = bluebird.defer();
+
+  // Find the hub that is sending us the data.
+  ALISDevice.find({
+    where: [
+      'uuid_token = ? AND client_secret = ?',
+      data.uuid_token,
+      data.client_secret
+    ]
+  }).compete(function (err, device) {
+    if (err) { return def.reject(err); }
+    if (!device) {
+      return def.reject(new Error('An ALIS device with the given UUID token and client secret not found'));
+    }
+
+    // Loop through each consumption, and return data that can be parsed by the
+    // `Reading.bulkCreate` function, below.
+    async.map(data.consumptions, function (consumption, callback) {
+      // Look for a meter associated with the ALISDevice.
+      ALISDevice.findOrCreateMeter({
+        remote_meter_id: consumption.remote_meter_id,
+        type: key
+      }).complete(function (err, meter) {
+        if (err) { return callback(err); }
+
+        EnergyConsumption.create({
+          meter_id: meter.id,
+          time: data.time,
+          kw: consumption.kw,
+          kwh: consumption.khw
+        }).complete(function (err, consumption) {
+          if (err) { return callback(err); }
+          callback(null, {
+            remote_meter_id: consumption.remote_meter_id,
+            value: newConsumption.kwh_difference
+          });
+        });
+      });
+    }, function (err, consumptions) {
+      if (err) { return def.reject(err); }
+      def.resolve(consumptions);
+    });
+  });
+
+  return def.promise;
+};
 
 /*
  * An override of the `bulkCreate` static method. Accepts an array of data.
@@ -481,36 +623,37 @@ var Reading = module.exports.Reading =
  *       "readings": {
  *         "energy_consumption": [
  *           {
- *             "remote_read_point_id": ...,
+ *             "remote_meter_id": ...,
  *             "value": ...
  *           },
  *           ...
  *         ],
  *         "energy_production": [
  *           {
- *             "remote_read_point_id": ...,
+ *             "remote_meter_id": ...,
  *             "value": ...
  *           }
  *         ],
  *         "water_use": [
  *           {
- *             "remote_read_point_id": ...,
+ *             "remote_meter_id": ...,
  *             "value": ....
  *           },
  *         ],
  *         ...
  *       }
  *     }
+ *
+ * Note: it is absolutely not required that we have a `energy_consumption`,
+ * `energy_production`, or `water_use` property. In fact, we are not even
+ * to those types of readings. Many more are possible.
  */
 
 // Note: Because this method is being overridden, it may mean that bugs may
 // arise. So far, there doesn't seem to be any, so let's keep this overridden.
 Reading.bulkCreate = function (data) {
-  var self = this;
   var def = bluebird.defer();
 
-  // Search for an ALIS device based on the provided UUID token and client
-  // secret.
   ALISDevice.find({
     where: [
       'uuid_token = ? AND client_secret = ?',
@@ -520,39 +663,108 @@ Reading.bulkCreate = function (data) {
   }).complete(function (err, device) {
     if (err) { return def.reject(err); }
     if (!device) {
-      return def.reject(new Error('An ALIS device with the given UUID token and client secret not found'));
+      return def.reject(new Error('An ALIS device with the given UUID tken and client secret not found'));
     }
-    // Loop through each energy consumption.
-    async.map(data.energy_readings, function (reading, callback) {
-      // An ALIS device can arbitrarily add or delete read points. Handle
-      // it here.
-      device.findOrCreateReadPoint(reading.id)
-        .then(function (readPoint) {
+    // Loop through each types of readings.
+    var keys = Object.keys(data.readings);
+    async.forEach(keys, function (key, callback) {
+      var readings = data.readings[key];
+      // Loop through each readings, in each types of readings.
+      async.forEach(readings, function (reading, callback) {
+
+        // Look for a meter with the given meter ID and type (or create it if
+        // it doesn't exist).
+        ALISDevice.findOrCreateMeter({
+          remote_meter_id: reading.remote_meter_id,
+          type: key
+        }).complete(function (err, meter) {
+          if (err) { return callback(err); }
+          // Create a new reading record in the database.
+          // TODO: cascade to a lower granularity.
           Reading.create({
-            read_point_id: readPoint.id,
+            meter_id: meter.id,
             time: data.time,
-            kw: reading.kw,
-            kwh: reading.kwh
-          }).success(function (con) {
-            callback(null, con);
-          }).error(function (err) {
-            if (err instanceof Error) {
-              return callback(err);
-            }
-            callback(new ValidationErrors(err));
+            value: reading.value
+          }).complete(function (err, reading) {
+            if (err) { return callback(err); }
+            callback(null);
           });
-        }).catch(function (err) {
-          throw err;
         });
-    }, function (err, readings) {
+      });
+    }, function (err) {
       if (err) { return def.reject(err); }
-      def.resolve(readings);
+      def.resolve()
     });
   });
+
   return def.promise;
+
+  // var self = this;
+  // var def = bluebird.defer();
+
+  // // Search for an ALIS device based on the provided UUID token and client
+  // // secret.
+  // ALISDevice.find({
+  //   where: [
+  //     'uuid_token = ? AND client_secret = ?',
+  //     data.uuid_token,
+  //     data.client_secret
+  //   ]
+  // }).complete(function (err, device) {
+  //   if (err) { return def.reject(err); }
+  //   if (!device) {
+  //     return def.reject(new Error('An ALIS device with the given UUID token and client secret not found'));
+  //   }
+  //   var keys = Object.keys(data.readings);
+  //   async.map(keys, function (key, callback) {
+  //     var readings = data.readings[key];
+  //     async.map(readings, function (reading, callback) {
+  //       device.findOrCreateMeter(reading.id)
+  //         .then(function (meter) {
+  //           Reading.create({
+  //             meter_id: meter.id,
+  //             time: data.time.
+
+  //           })
+  //         }).success(function (con) {
+
+  //         })
+  //     });
+  //   });
+  //   // Loop through each energy consumption.
+  //   async.map(data.energy_readings, function (reading, callback) {
+  //     // An ALIS device can arbitrarily add or delete read points. Handle
+  //     // it here.
+  //     device.findOrCreateMeter(reading.id)
+  //       .then(function (meter) {
+  //         Reading.create({
+  //           meter_id: meter.id,
+  //           time: data.time,
+  //           kw: reading.kw,
+  //           kwh: reading.kwh
+  //         }).success(function (con) {
+  //           callback(null, con);
+  //         }).error(function (err) {
+  //           if (err instanceof Error) {
+  //             return callback(err);
+  //           }
+  //           callback(new ValidationErrors(err));
+  //         });
+  //       }).catch(function (err) {
+  //         throw err;
+  //       });
+  //   }, function (err, readings) {
+  //     if (err) { return def.reject(err); }
+  //     def.resolve(readings);
+  //   });
+  // });
+  // return def.promise;
 };
 
-// Associations.
+/*
+ * This synchronizes the database when specified. Otherwise, ends the function
+ * when no syncrhonizations required.
+ */
 
 module.exports.prepare = function (callback) {
   if (settings.get('database:sync')) {

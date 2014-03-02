@@ -3,7 +3,7 @@ var uuid = require('node-uuid');
 var crypto = require('crypto');
 var bluebird = require('bluebird');
 var seq = require('./seq');
-var ReadPoint = require('./ReadPoint');
+var Meter = require('./Meter');
 
 /*
  * Represents an ALIS device.
@@ -131,21 +131,21 @@ module.exports = seq.define('alis_device', {
       return def.promise;
     },
 
-    findOrCreateReadPoint: function (readPointID) {
+    findOrCreateMeter: function (meterID) {
       var def = bluebird.defer();
       var self = this;
-      this.getReadPoints({
-        where: [ 'remote_read_point_id = ?', readPointID ]
-      }).complete(function (err, readPoints) {
+      this.getMeters({
+        where: [ 'remote_meter_id = ?', meterID ]
+      }).complete(function (err, meters) {
         if (err) { return def.reject(err); }
-        if (readPoints[0]) { return def.resolve(readPoints[0]); }
-        ReadPoint.create({
-          remote_read_point_id: readPointID
-        }).complete(function (err, readPoint) {
+        if (meters[0]) { return def.resolve(meters[0]); }
+        Meter.create({
+          remote_meter_id: meterID
+        }).complete(function (err, meter) {
           if (err) { def.reject(err); }
-          self.addReadPoint(readPoint).complete(function (err, readPoint) {
+          self.addMeter(meter).complete(function (err, meter) {
             if (err) { def.reject(err); }
-            def.resolve(readPoint);
+            def.resolve(meter);
           });
         });
       });

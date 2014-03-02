@@ -106,15 +106,15 @@ describe('ALISDevice', function () {
     });
   });
 
-  describe('findOrCreateReadPoint', function () {
+  describe('findOrCreateMeter', function () {
     it('should create a consumer, if one wasn\'t found', function (done) {
       user.createALISDevice().complete(function (err, alisDevice) {
         if (err) { throw err; }
-        var readPointId = 'hello,world';
-        alisDevice.findOrCreateReadPoint(readPointId).then(function (consumer) {
-          alisDevice.getReadPoints().complete(function (err, consumers) {
+        var meterId = 'hello,world';
+        alisDevice.findOrCreateMeter(meterId).then(function (consumer) {
+          alisDevice.getMeters().complete(function (err, consumers) {
             if (err) { throw err; }
-            expect(consumers[0].remote_read_point_id).to.be(readPointId);
+            expect(consumers[0].remote_meter_id).to.be(meterId);
             done();
           });
         }).catch(function (err) {
@@ -126,14 +126,14 @@ describe('ALISDevice', function () {
     it('should find a consumer, if one was found', function (done) {
       user.createALISDevice().complete(function (err, alisDevice) {
         if (err) { throw err; }
-        var readPointId = 'hello,world';
-        alisDevice.findOrCreateReadPoint(readPointId).then(function (consumer) {
-          alisDevice.getReadPoints().complete(function (err, consumers) {
+        var meterId = 'hello,world';
+        alisDevice.findOrCreateMeter(meterId).then(function (consumer) {
+          alisDevice.getMeters().complete(function (err, consumers) {
             if (err) { throw err; }
             alisDevice
-              .findOrCreateReadPoint(consumers[0].remote_read_point_id)
+              .findOrCreateMeter(consumers[0].remote_meter_id)
               .then(function (consumer) {
-                expect(consumers[0].remote_read_point_id).to.be(readPointId);
+                expect(consumers[0].remote_meter_id).to.be(meterId);
                 done();
               })
               .catch(function (err) {
