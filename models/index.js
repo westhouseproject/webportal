@@ -68,178 +68,6 @@ ALISDevice.hasMany(User, {
   foreignKey: 'alis_device_id'
 });
 
-/*
- * Returns a function that will be used for merging multiple data points in a
- * higher granularity as well as notify other lower granular models that this
- * model had an update.
- *
- * @param intervalFn Function is a function that returns a number, that
- *   represents the interval to get the data from.
- */
-
-// TODO: expect the interval to be a function and not a number.
-// TODO: expand this function to work with other types of readings, such as
-//   energy production, water use, and gas use.
-function createCollector(intervalFn, nextGranularity) {
-
-  /*
-   * @param granularModel Object represents the granular
-   */
-  return function (granularModel, time, meter_id) {
-    var self = this;
-
-    // The `interval` parameter is a function. Convert it into a number by
-    // calling it.
-    var interval = intervalFn();
-
-    // Round to the nearest interval.
-    var rounded = roundTime(time, interval);
-
-    var def = bluebird.defer();
-    var promise = def.promise;
-
-    // TODO: remove these success and error extensions. Too much cruft.
-
-    promise.success = function (fn) {
-      return promise.then(fn);
-    };
-
-    promise.error = function (fn) {
-      return promise.then(function () {}, fn);
-    };
-
-    // The query to get readings within a given interval.
-    var whereClause = [
-      'time > ? && time <= ? && meter_id = ?',
-      rounded,
-      time,
-      meter_id
-    ];
-
-    // Execute the above query to get energy reading data.
-    granularModel.model.findAll({
-      where: whereClause
-    }).success(function (consumptions) {
-      // The statistics. Will be modified later if consumptions.length > 0.
-      var statistics = {
-        kwh: 0,
-        kwh_mean: 0
-      };
-
-      // Populate the statistics.
-      if (consumptions.length) {
-        var kwhs = consumptions.map(function (consumption) {
-          return consumption.values[granularModel.readingsPropertyName];
-        });
-        statistics.kwh_sum = kwhs.reduce(function (prev, curr) {
-          return prev + curr;
-        });
-        statistics.kwh_mean = statistics.kwh_sum / kwhs.length;
-        statistics.kwh_min = kwhs.slice().sort()[0];
-        statistics.kwh_max = kwhs.slice().sort()[kwhs.length - 1];
-      }
-
-      // The query to get the single most recent piece of data from *this*
-      // model. (Remember the above `findAll` call was to the lower
-      // granularity model, **not** this model.)
-      //
-      // In case you are wondering where the time-based filtering is done,
-      // then look no further; the time-based filtering is done in an
-      // if-statement, below.
-      //
-      // TODO: figure out whether or not it is better to filter here, or to
-      //   do so in the if-statement below.
-      var query = {
-        order: 'time DESC',
-        where: [ 'meter_id = ?', meter_id ]
-      }
-
-      self.find(query).success(function (unitData) {
-
-        // A helper function to collect the next set of data from the next
-        // granularity.
-        //
-        // @param prevData Object is the instance object for what we retrieved
-        //   currently.
-        function collectNext(prevData) {
-          // The parameters to the collectRecent function.
-          var parameters = [
-            {
-              model: self,
-              readingsPropertyName: 'kwh_sum'
-            },
-            prevData.values.time,
-            meter_id
-          ];
-
-          nextGranularity
-          .collectRecent.apply(nextGranularity, parameters)
-          .success(function (nextData) {
-            def.resolve(nextData);
-          }).error(function (err) {
-            def.reject(err)
-          });
-        }
-
-        // If the above query didn't get anything, or if the returned value is
-        // much older than the maximum interval then this means that we
-        // should add a new record to the database.
-        if (
-            !unitData ||
-            // For some odd reason, the queried values do not correspond
-            // with the columns defined in the database schema. Hence why
-            // I'm omitting the `.getTime()` call from
-            // `unitData.values.time`.
-            rounded.getTime() !==
-              roundTime(unitData.values.time, interval).getTime()
-        ) {
-          var tableSpecificProperties = {
-            time: roundTime(time, interval),
-            meter_id: meter_id
-          };
-
-          self.create(
-            _.assign(
-              tableSpecificProperties,
-              statistics
-            )
-          ).success(function (unitData) {
-            if (!nextGranularity) {
-              return def.resolve(unitData);
-            }
-
-            collectNext(unitData);
-          }).error(function (err) {
-            def.reject(err);
-          });
-
-          return
-        }
-
-        _.assign(unitData.values, statistics);
-
-        unitData.save().success(function (unitData) {
-          if (!nextGranularity) {
-            return def.resolve(unitData);
-          }
-
-          collectNext(unitData);
-        })
-        // TODO: merge error calls into a `complete` method call instead of
-        //   `success`-`error` combo.
-        .error(function (err) {
-          def.reject(err);
-        });
-      }).error(function (err) {
-        def.reject(err);
-      });
-    }).error(function (err) {
-      def.reject(err);
-    });
-
-    return promise;
-  };
-}
 
 /*
  * Generates a model.
@@ -248,8 +76,8 @@ function createCollector(intervalFn, nextGranularity) {
  * time-series granularity.
  */
 
-function createModel(tableName, interval, nextGranularity) {
-  return seq.define(tableName, {
+function createModel(timeCode, interval, nextGranularity) {
+  return seq.define('readings_' + timeCode, {
     meter_id: {
       type: Sequelize.INTEGER(11),
       validate: {
@@ -274,111 +102,18 @@ function createModel(tableName, interval, nextGranularity) {
     freezeTableName: true,
     timestamps: false,
     classMethods: {
-      collectRecent: nextGranularity ?
-        createCollector(interval, nextGranularity) :
-          createCollector(interval)
+      collectRecent: function (model, interval, reading) {
+      }
     }
+    // classMethods: {
+    //   collectRecent: nextGranularity ?
+    //     createCollector(interval, nextGranularity) :
+    //       createCollector(interval)
+    // }
   });
 }
 
-/*
- * Will hold a list of all models that represent a series, in a given time
- * series.
- *
- * @property model Object a sequelize model object.
- * @property maxRange Integer the maximum range that the model get when
- *   calling getEnergyReadings
- */
-
-var seriesCollection = {};
-
-(function () {
-
-  var seriesCollectionMeta = {
-    '1m': {
-      interval: function() { return 1000 * 60 },
-      nextGranularity: '5m',
-      maxRange: 1000 * 60 * 60
-    },
-    '5m': {
-      interval: function() { return 1000 * 60 *  5},
-      nextGranularity: '1h',
-      maxRange: 1000 * 60 * 60 * 2
-    },
-    '1h': {
-      interval: function() { return 1000 * 60 * 60 },
-      nextGranularity: '1d',
-      maxRange: 1000 * 60 * 60 * 24
-    },
-    '1d': {
-      interval: function () { return 1000 * 60 * 60 * 24 },
-      nextGranularity: '1w',
-      maxRange: 1000 * 60 * 60 * 24 * 14
-    },
-    '1w': {
-      interval: function () {
-        return sunday(new Date());
-      },
-      nextGranularity: '1mo',
-      maxRange: 1000 * 60 * 60 * 24 * 7 * 4
-    },
-    '1mo': {
-      interval: function ()  {
-        return firstOfMonth(new Date());
-      },
-      nextGranularity: '1y',
-      maxRange: 1000 * 60 * 60 * 24 * 365
-    },
-    '1y': {
-      interval: function () {
-        return firstOfYear(new Date());
-      },
-      maxRange: 1000 * 60 * 60 * 24 * 365 * 10
-    }
-  };
-
-  var done = {};
-
-  function setSeries(key) {
-
-    if (done[key]) {
-      return;
-    }
-
-    var nextGranularity = seriesCollectionMeta[key].nextGranularity;
-    if (nextGranularity) {
-
-      setSeries(nextGranularity);
-
-      seriesCollection[key].model = createModel(
-        'energy_consumptions_' + key,
-        seriesCollectionMeta[key].interval,
-        seriesCollection[nextGranularity].model
-      );
-
-    } else {
-
-      seriesCollection[key].model = createModel(
-        'energy_consumptions_' + key,
-        seriesCollectionMeta[key].interval
-      );
-
-    }
-
-    seriesCollection[key].maxRange = seriesCollectionMeta[key].maxRange;
-
-    done[key] = true;
-
-  }
-
-  Object.keys(seriesCollectionMeta).map(function (key) {
-    seriesCollection[key] = {};
-    return key;
-  }).forEach(function (key) {
-    setSeries(key);
-  });
-
-})();
+var Readings1m = createModel('1m');
 
 /*
  * Holds information about energy usage by every single devices. This is
@@ -412,22 +147,51 @@ var Reading = module.exports.Reading =
     freezeTableName: true,
     timestamps: false,
     hooks: {
-      // TODO: move away from using `modelInstance.values.<property>`, to
-      //   going to `modelInstance.<property>`.
-
-      // afterCreate: function (reading, callback) {
-      //   seriesCollection['1m'].model.collectRecent(
-      //     {
-      //       model: this
-      //     }, 
-      //     reading.time,
-      //     reading.meter_id
-      //   )
-      //   .success(function () {
-      //     callback(null, reading);
-      //   })
-      //   .error(callback);
-      // }
+      afterCreate: function (reading, callback) {
+        var rounded = Math.floor(roundTime(reading.time, 1000 * 60).getTime() / 1000);
+        //console.log(rounded);
+        //console.log(new Date(rounded * 1000));
+        this.findAll({
+          where: [
+            'time > FROM_UNIXTIME(?) && time <= FROM_UNIXTIME(?) && meter_id = ?',
+            rounded,
+            Math.floor(reading.time.getTime() / 1000),
+            reading.meter_id
+          ]
+        }).complete(function (err, readings) {
+          if (err) { return callback(err); }
+          var data = readings.reduce(function (prev, curr) {
+            return {
+              meter_id: prev.meter_id,
+              time: new Date(rounded * 1000),
+              sum: prev.sum + curr.value,
+              mean: (prev.mean + curr.value) / 2,
+              min: Math.min(prev.min, curr.value),
+              max: Math.max(prev.max, curr.value)
+            }
+          }, {
+            meter_id: readings[0].meter_id,
+            time: new Date(rounded * 1000),
+            sum: readings[0].value,
+            mean: readings[0].value,
+            min: readings[0].value,
+            max: readings[0].value
+          });
+          Readings1m.find({
+            where: [ 'time = FROM_UNIXTIME(?) AND meter_id = ?', rounded, reading.meter_id ]
+          }).complete(function (err, reading1m) {
+            if (err) { return callback(err); }
+            if (!reading1m) {
+              return Readings1m.create(data).complete(function (err, reading1m) {
+                callback(null, reading);
+              });
+            }
+            reading1m.updateAttributes(data).complete(function (err, reading1m) {
+              callback(null, reading);
+            });
+          });
+        });
+      }
     }
   });
 
@@ -482,17 +246,6 @@ var EnergyConsumption = module.exports.EnergyConsumption =
           consumption.kwh_difference = consumption.kwh - prevConsumption.kwh;
           // console.log(consumption.values);
           callback(null, consumption);
-          // self.create({
-          //   meter_id: meter.id,
-          //   time: data.time,
-          //   kw: consumption.kw,
-          //   kwh: consumption.kwh,
-          //   kwh_difference: consumption.kwh - prevConsumption.kwh
-          // }).complete(function (err, newConsumption) {
-          //   if (err) { return callback(err); }
-          //   // Return the parsed new piece of data.
-          //   callback(null)
-          // });
         });
       }
     }
@@ -669,68 +422,6 @@ Reading.bulkCreate = function (data) {
   });
 
   return def.promise;
-
-
-  // var self = this;
-  // var def = bluebird.defer();
-
-  // // Search for an ALIS device based on the provided UUID token and client
-  // // secret.
-  // ALISDevice.find({
-  //   where: [
-  //     'uuid_token = ? AND client_secret = ?',
-  //     data.uuid_token,
-  //     data.client_secret
-  //   ]
-  // }).complete(function (err, device) {
-  //   if (err) { return def.reject(err); }
-  //   if (!device) {
-  //     return def.reject(new Error('An ALIS device with the given UUID token and client secret not found'));
-  //   }
-  //   var keys = Object.keys(data.readings);
-  //   async.map(keys, function (key, callback) {
-  //     var readings = data.readings[key];
-  //     async.map(readings, function (reading, callback) {
-  //       device.findOrCreateMeter(reading.id)
-  //         .then(function (meter) {
-  //           Reading.create({
-  //             meter_id: meter.id,
-  //             time: data.time.
-
-  //           })
-  //         }).success(function (con) {
-
-  //         })
-  //     });
-  //   });
-  //   // Loop through each energy consumption.
-  //   async.map(data.energy_readings, function (reading, callback) {
-  //     // An ALIS device can arbitrarily add or delete read points. Handle
-  //     // it here.
-  //     device.findOrCreateMeter(reading.id)
-  //       .then(function (meter) {
-  //         Reading.create({
-  //           meter_id: meter.id,
-  //           time: data.time,
-  //           kw: reading.kw,
-  //           kwh: reading.kwh
-  //         }).success(function (con) {
-  //           callback(null, con);
-  //         }).error(function (err) {
-  //           if (err instanceof Error) {
-  //             return callback(err);
-  //           }
-  //           callback(new ValidationErrors(err));
-  //         });
-  //       }).catch(function (err) {
-  //         throw err;
-  //       });
-  //   }, function (err, readings) {
-  //     if (err) { return def.reject(err); }
-  //     def.resolve(readings);
-  //   });
-  // });
-  // return def.promise;
 };
 
 /*
