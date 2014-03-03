@@ -139,15 +139,12 @@ module.exports = seq.define('alis_device', {
       }).complete(function (err, meters) {
         if (err) { return def.reject(err); }
         if (meters[0]) { return def.resolve(meters[0]); }
-        Meter.create({
+        self.createMeter({
           remote_meter_id: options.remote_meter_id,
           type: options.type
         }).complete(function (err, meter) {
           if (err) { def.reject(err); }
-          self.addMeter(meter).complete(function (err, meter) {
-            if (err) { def.reject(err); }
-            def.resolve(meter);
-          });
+          def.resolve(meter);
         });
       });
       return def.promise;

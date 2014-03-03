@@ -4,6 +4,7 @@ var _ = require('lodash');
 var fs = require('fs');
 var path = require('path');
 var async = require('async');
+var expect = require('expect.js');
 
 describe('Reading', function () {
   // We should, in theory, have a user and ALIS device.
@@ -56,6 +57,36 @@ describe('Reading', function () {
         }).catch(callback)
       }, function (err) {
         if (err) { throw err; }
+      });
+    });
+  });
+
+  describe('createAndParseEnergyReadings', function () {
+    it('should have parsed the data, stored it as is into the database, and returned the consumptiona in the format accepted by bulkCreate', function (done) {
+      var jsonstr = fs.readFileSync(path.join(__dirname, 'sample-data.json'), 'utf8');
+      jsonstr = _.template(jsonstr, {
+        uuid_token: device.uuid_token,
+        client_secret: device.client_secret
+      });
+      var readings = JSON.parse(jsonstr);
+      async.eachSeries(readings, function (reading, callback) {
+        var data = {
+          time: reading.time,
+          uuid_token: reading.uuid_token,
+          client_secret: reading.client_secret,
+          consumptions: reading.energy_consumption
+        };
+        models.createAndParseEnergyReadings(data).then(function (data) {
+          data.readings.forEach(function (reading) {
+            expect(reading.kw).to.be(void 0);
+            expect(reading.kwh).to.be(void 0);
+            expect(reading.value).to.be.a('number');
+          });
+          callback(null);
+        }).catch(callback);
+      }, function (err) {
+        if (err) { throw err; }
+        done();
       });
     });
   });

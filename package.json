@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "test": "./node_modules/mocha/bin/mocha",
+    "test": "NODE_ENV=testing ./node_modules/mocha/bin/mocha -t 20000",
     "develop": "NODE_ENV=development nodemon -i public webportal"
   },
   "devDependencies": {

@@ -519,14 +519,15 @@ var EnergyConsumption = module.exports.EnergyConsumption =
         this.find({
           where: [
             'meter_id = ?',
-            meter.id
+            consumption.meter_id
           ],
-          orderBy: 'time DESC'
+          order: 'time DESC'
         }).complete(function (err, prevConsumption) {
           if (err) { return callback(err); }
           prevConsumption = prevConsumption || { kwh: 0 }
           // Insert a new piece of consumption data.
           consumption.kwh_difference = consumption.kwh - prevConsumption.kwh;
+          // console.log(consumption.values);
           callback(null, consumption);
           // self.create({
           //   meter_id: meter.id,
@@ -556,7 +557,7 @@ var EnergyConsumption = module.exports.EnergyConsumption =
  *       "client_secret": ...,
  *       "consumptions": [
  *         {
- *           "remote_meter_id": ...,
+ *           "id": ...,
  *           "kw": ...,
  *           "kwh": ...
  *         }
@@ -574,7 +575,7 @@ module.exports.createAndParseEnergyReadings = function (data) {
       data.uuid_token,
       data.client_secret
     ]
-  }).compete(function (err, device) {
+  }).complete(function (err, device) {
     if (err) { return def.reject(err); }
     if (!device) {
       return def.reject(new Error('An ALIS device with the given UUID token and client secret not found'));
@@ -584,28 +585,36 @@ module.exports.createAndParseEnergyReadings = function (data) {
     // `Reading.bulkCreate` function, below.
     async.map(data.consumptions, function (consumption, callback) {
       // Look for a meter associated with the ALISDevice.
-      ALISDevice.findOrCreateMeter({
-        remote_meter_id: consumption.remote_meter_id,
-        type: key
-      }).complete(function (err, meter) {
+      device.findOrCreateMeter({
+        remote_meter_id: consumption.id,
+        type: 'energy_consumption'
+      }).then(function (meter) {
         if (err) { return callback(err); }
-
-        EnergyConsumption.create({
+        var retval = {
           meter_id: meter.id,
           time: data.time,
           kw: consumption.kw,
-          kwh: consumption.khw
-        }).complete(function (err, consumption) {
+          kwh: consumption.kwh
+        };
+        // console.log(retval);
+        EnergyConsumption.create(retval).complete(function (err, consumption) {
           if (err) { return callback(err); }
           callback(null, {
-            remote_meter_id: consumption.remote_meter_id,
-            value: newConsumption.kwh_difference
+            remote_meter_id: consumption.meter_id,
+            value: consumption.kwh_difference
           });
         });
+      }).catch(function (err) {
+        def.reject(err);
       });
     }, function (err, consumptions) {
       if (err) { return def.reject(err); }
-      def.resolve(consumptions);
+      def.resolve({
+        time: data.time,
+        uuid_token: data.uuid_token,
+        client_secret: data.client_secret,
+        readings: consumptions
+      });
     });
   });
 
@@ -623,21 +632,21 @@ module.exports.createAndParseEnergyReadings = function (data) {
  *       "readings": {
  *         "energy_consumption": [
  *           {
- *             "remote_meter_id": ...,
+ *             "id": ...,
  *             "value": ...
  *           },
  *           ...
  *         ],
  *         "energy_production": [
  *           {
- *             "remote_meter_id": ...,
+ *             "id": ...,
  *             "value": ...
  *           },
  *           ...
  *         ],
  *         "water_use": [
  *           {
- *             "remote_meter_id": ...,
+ *             "id": ...,
  *             "value": ....
  *           },
  *           ...
@@ -667,14 +676,12 @@ Reading.bulkCreate = function (data) {
     if (!device) {
       return def.reject(new Error('An ALIS device with the given UUID tken and client secret not found'));
     }
-    console.log(data);
     // Loop through each types of readings.
     var keys = Object.keys(data.readings);
     async.forEach(keys, function (key, callback) {
       var readings = data.readings[key];
       // Loop through each readings, in each types of readings.
       async.forEach(readings, function (reading, callback) {
-
         // Look for a meter with the given meter ID and type (or create it if
         // it doesn't exist).
         device.findOrCreateMeter({
