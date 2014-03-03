@@ -632,13 +632,15 @@ module.exports.createAndParseEnergyReadings = function (data) {
  *           {
  *             "remote_meter_id": ...,
  *             "value": ...
- *           }
+ *           },
+ *           ...
  *         ],
  *         "water_use": [
  *           {
  *             "remote_meter_id": ...,
  *             "value": ....
  *           },
+ *           ...
  *         ],
  *         ...
  *       }
@@ -665,6 +667,7 @@ Reading.bulkCreate = function (data) {
     if (!device) {
       return def.reject(new Error('An ALIS device with the given UUID tken and client secret not found'));
     }
+    console.log(data);
     // Loop through each types of readings.
     var keys = Object.keys(data.readings);
     async.forEach(keys, function (key, callback) {
@@ -674,10 +677,10 @@ Reading.bulkCreate = function (data) {
 
         // Look for a meter with the given meter ID and type (or create it if
         // it doesn't exist).
-        ALISDevice.findOrCreateMeter({
+        device.findOrCreateMeter({
           remote_meter_id: reading.remote_meter_id,
           type: key
-        }).complete(function (err, meter) {
+        }).then(function (meter) {
           if (err) { return callback(err); }
           // Create a new reading record in the database.
           // TODO: cascade to a lower granularity.
@@ -689,6 +692,8 @@ Reading.bulkCreate = function (data) {
             if (err) { return callback(err); }
             callback(null);
           });
+        }).catch(function (err) {
+          throw err;
         });
       });
     }, function (err) {

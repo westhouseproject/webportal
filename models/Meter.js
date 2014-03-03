@@ -3,7 +3,6 @@ var seq = require('./seq');
 
 // TODO: set a custom primary key for both the users and alis_device tables.
 
-
 /*
  * The devices that consume energy.
  */

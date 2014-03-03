@@ -107,33 +107,44 @@ describe('ALISDevice', function () {
   });
 
   describe('findOrCreateMeter', function () {
-    it('should create a consumer, if one wasn\'t found', function (done) {
+    it('should create a meter, if one wasn\'t found', function (done) {
       user.createALISDevice().complete(function (err, alisDevice) {
         if (err) { throw err; }
         var meterId = 'hello,world';
-        alisDevice.findOrCreateMeter(meterId).then(function (consumer) {
+        var type = 'energy_consumption';
+        alisDevice.findOrCreateMeter({
+          remote_meter_id: meterId,
+          type: type
+        }).then(function (consumer) {
           alisDevice.getMeters().complete(function (err, consumers) {
             if (err) { throw err; }
             expect(consumers[0].remote_meter_id).to.be(meterId);
+            expect(consumers[0].type).to.be(type);
             done();
           });
         }).catch(function (err) {
           throw err;
-        })
+        });
       });
     });
 
-    it('should find a consumer, if one was found', function (done) {
+    it('should find a meter, if one was found', function (done) {
       user.createALISDevice().complete(function (err, alisDevice) {
         if (err) { throw err; }
         var meterId = 'hello,world';
-        alisDevice.findOrCreateMeter(meterId).then(function (consumer) {
-          alisDevice.getMeters().complete(function (err, consumers) {
+        var type = 'energy_consumption';
+        alisDevice.findOrCreateMeter({
+          remote_meter_id: meterId,
+          type: type
+        }).then(function (consumer) {
+          alisDevice.getMeters().complete(function (err, meters) {
             if (err) { throw err; }
             alisDevice
-              .findOrCreateMeter(consumers[0].remote_meter_id)
-              .then(function (consumer) {
-                expect(consumers[0].remote_meter_id).to.be(meterId);
+              .findOrCreateMeter({
+                remote_meter_id: meters[0].remote_meter_id,
+                type: type
+              }).then(function (consumer) {
+                expect(meters[0].remote_meter_id).to.be(meterId);
                 done();
               })
               .catch(function (err) {

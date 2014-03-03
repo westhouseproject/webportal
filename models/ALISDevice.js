@@ -131,16 +131,17 @@ module.exports = seq.define('alis_device', {
       return def.promise;
     },
 
-    findOrCreateMeter: function (meterID) {
+    findOrCreateMeter: function (options) {
       var def = bluebird.defer();
       var self = this;
       this.getMeters({
-        where: [ 'remote_meter_id = ?', meterID ]
+        where: [ 'remote_meter_id = ? AND type = ?', options.remote_meter_id, options.type ]
       }).complete(function (err, meters) {
         if (err) { return def.reject(err); }
         if (meters[0]) { return def.resolve(meters[0]); }
         Meter.create({
-          remote_meter_id: meterID
+          remote_meter_id: options.remote_meter_id,
+          type: options.type
         }).complete(function (err, meter) {
           if (err) { def.reject(err); }
           self.addMeter(meter).complete(function (err, meter) {

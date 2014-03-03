@@ -6,3 +6,4 @@ out
 Capfile
 Vagrantfile
 .vagrant
+test/integration/models/sample-data.json
