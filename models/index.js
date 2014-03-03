@@ -260,16 +260,16 @@ function createModel(tableName, interval, nextGranularity) {
       type: Sequelize.DATE,
       notNull: true
     },
-    kwh_sum: {
+    sum: {
       type: Sequelize.FLOAT,
       defaultValue: 0
     },
-    kwh_mean: {
+    mean: {
       type: Sequelize.FLOAT,
       defaultValue: 0
     },
-    kwh_min: Sequelize.FLOAT,
-    kwh_max: Sequelize.FLOAT,
+    min: Sequelize.FLOAT,
+    max: Sequelize.FLOAT,
   }, {
     freezeTableName: true,
     timestamps: false,
@@ -403,19 +403,6 @@ var Reading = module.exports.Reading =
       }
     },
 
-    // kw: {
-    //   type: Sequelize.FLOAT,
-    //   defaultValue: 0
-    // },
-    // kwh: {
-    //   type: Sequelize.FLOAT,
-    //   defaultValue: 0
-    // },
-    // kwh_difference: {
-    //   type: Sequelize.FLOAT,
-    //   defaultValue: 0
-    // }
-
     value: {
       type: Sequelize.FLOAT,
       defaultValue: 0
@@ -428,53 +415,19 @@ var Reading = module.exports.Reading =
       // TODO: move away from using `modelInstance.values.<property>`, to
       //   going to `modelInstance.<property>`.
 
-      beforeValidate: function (consumption, callback) {
-        var self = this;
-
-        // Look for the most recent entry.
-        //
-        // We are omitting the interval because we only need the previous data
-        // to compute the kWh difference from the current reading, and the
-        // previous one.
-        this.find({
-          where: [ 'meter_id = ?', consumption.meter_id ],
-          order: 'time DESC' })
-        .success(function (prev) {
-          if (prev) {
-            // We want our data to be inserted in chronological order. Throw
-            // an error if anything screws up.
-            if (prev.values.time > reading.values.time) {
-              var err = new Error(
-                'Current time: ' + reading.values.time + '\n' +
-                'Previous time: ' + prev.values.time + '\n\n' +
-                'Current time must be greater than previous time'
-              );
-              return callback(err);
-            }
-
-            reading.values.kwh_difference =
-              reading.values.kwh - prev.values.kwh;
-          } else {
-            reading.values.kwh_difference = reading.values.kwh
-          }
-
-          callback(null, reading);
-        }).error(callback);
-      },
-      afterCreate: function (reading, callback) {
-        seriesCollection['1m'].model.collectRecent(
-          {
-            model: this,
-            readingsPropertyName: 'kwh_difference'
-          }, 
-          reading.time,
-          reading.meter_id
-        )
-        .success(function () {
-          callback(null, reading);
-        })
-        .error(callback);
-      }
+      // afterCreate: function (reading, callback) {
+      //   seriesCollection['1m'].model.collectRecent(
+      //     {
+      //       model: this
+      //     }, 
+      //     reading.time,
+      //     reading.meter_id
+      //   )
+      //   .success(function () {
+      //     callback(null, reading);
+      //   })
+      //   .error(callback);
+      // }
     }
   });
 
@@ -565,7 +518,7 @@ var EnergyConsumption = module.exports.EnergyConsumption =
  *     }
  */
 
-module.exports.createAndParseEnergyReadings = function (data) {
+var createAndParseEnergyReadings = module.exports.createAndParseEnergyReadings = function (data) {
   var def = bluebird.defer();
 
   // Find the hub that is sending us the data.
@@ -678,16 +631,17 @@ Reading.bulkCreate = function (data) {
     }
     // Loop through each types of readings.
     var keys = Object.keys(data.readings);
-    async.forEach(keys, function (key, callback) {
+    async.each(keys, function (key, callback) {
       var readings = data.readings[key];
       // Loop through each readings, in each types of readings.
       async.forEach(readings, function (reading, callback) {
         // Look for a meter with the given meter ID and type (or create it if
         // it doesn't exist).
-        device.findOrCreateMeter({
-          remote_meter_id: reading.remote_meter_id,
+        var properties = {
+          remote_meter_id: reading.id,
           type: key
-        }).then(function (meter) {
+        };
+        device.findOrCreateMeter(properties).then(function (meter) {
           if (err) { return callback(err); }
           // Create a new reading record in the database.
           // TODO: cascade to a lower granularity.
@@ -702,6 +656,11 @@ Reading.bulkCreate = function (data) {
         }).catch(function (err) {
           throw err;
         });
+      }, function (err) {
+        if (err) {
+          return callback(err);
+        }
+        callback(null);
       });
     }, function (err) {
       if (err) { return def.reject(err); }
@@ -710,6 +669,7 @@ Reading.bulkCreate = function (data) {
   });
 
   return def.promise;
+
 
   // var self = this;
   // var def = bluebird.defer();
