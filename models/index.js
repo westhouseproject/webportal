@@ -207,10 +207,12 @@ function collect(instance, instanceModel, model, intervalFunction) {
   return def.promise;
 }
 
-var Readings1y = createModel('1y');
-var Readings1mo = createModel('1mo');
-var Readings1w = createModel('1w');
-var Readings1d = createModel(
+var readingsGranularities = module.exports.readingsGranularities = {};
+
+var Readings1y = readingsGranularities['1y'] = createModel('1y');
+var Readings1mo = readingsGranularities['1mo'] = createModel('1mo');
+var Readings1w = readingsGranularities['1w'] = createModel('1w');
+var Readings1d = readingsGranularities['1d'] = createModel(
   '1d',
   [
     {
@@ -226,8 +228,8 @@ var Readings1d = createModel(
       intervalFunction: firstOfYear
     }
   ]
-)
-var Readings1h = createModel(
+);
+var Readings1h = readingsGranularities['1h'] = createModel(
   '1h',
   [
     {
@@ -235,8 +237,8 @@ var Readings1h = createModel(
       intervalFunction: roundTimeFunc(1000 * 60 * 60 * 24)
     }
   ]
-)
-var Readings5m = createModel(
+);
+var Readings5m = readingsGranularities['5m'] = createModel(
   '5m',
   [
     {
@@ -244,8 +246,8 @@ var Readings5m = createModel(
       intervalFunction: roundTimeFunc(1000 * 60 * 60)
     }
   ]
-)
-var Readings1m = createModel(
+);
+var Readings1m = readingsGranularities['1m'] = createModel(
   '1m',
   [
     {

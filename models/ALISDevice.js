@@ -31,57 +31,6 @@ module.exports = seq.define('alis_device', {
     resetClientSecret: function () {
       this.client_secret = crypto.randomBytes(20).toString('hex');
     },
-    // getOwner: function () {
-    //   var def = bluebird.defer();
-    //   UserALISDevice.find({
-    //     where: [ 'alis_device_id = ? AND privilege = ?', this.id, 'owner' ]
-    //   }).complete(function (err, join) {
-    //     if (err) { def.reject(err); }
-    //     if (!join) {
-    //       return def.resolve(null);
-    //     }
-    //     UserALISDevice.findUser().complete(function (err, user) {
-    //       if (err) {
-    //         return def.reject(err);
-    //       }
-    //       def.resolve(user);
-    //     });
-    //   });
-    //   return def.promise;
-    // },
-
-    // isOwner: function (user) {
-    //   var def = bluebird.defer();
-    //   if (!user) {
-    //     process.nextTick(function () {
-    //       def.resolve(false);
-    //     });
-    //   } else {
-    //     this.getOwner().then(function (u) {
-    //       def.resolve(u.id === user.id);
-    //     }).catch(function (err) {
-    //       def.reject(err);
-    //     });
-    //   }
-    //   return def.promise;
-    // },
-
-    // isAdmin: function (user) {
-    //   var def = bluebird.defer();
-    //   UserALISDevice.find({
-    //     where: [
-    //       'alis_device_id = ? AND user_id = ? AND (privilege = ? OR privilege = ?)',
-    //       this.id,
-    //       user.id,
-    //       'admin',
-    //       'owner'
-    //     ]
-    //   }).complete(function (err, user) {
-    //     if (err) { return def.reject(err); }
-    //     def.resolve(!!user);
-    //   });
-    //   return def.promise;
-    // },
 
     hasAccess: function (user) {
       var def = bluebird.defer();
@@ -97,31 +46,6 @@ module.exports = seq.define('alis_device', {
       });
       return def.promise;
     },
-
-    /*
-     * Will give limited access to the specified user.
-     */
-
-    // grantAccessTo: function (admin, user) {
-    //   var def = bluebird.defer();
-    //   var self = this;
-    //   this.isAdmin(admin).then(function (result) {
-    //     if (!result) {
-    //       def.reject(new Error('The user is not an admin.'));
-    //     }
-    //     UserALISDevice.create({
-    //       user_id: user.id,
-    //       alis_device_id: self.id,
-    //       adminUserID: admin.id
-    //     }).complete(function (err, join) {
-    //       if (err) { def.reject(err); }
-    //       def.resolve(user);
-    //     });
-    //   }).catch(function (err) {
-    //     def.reject(err);
-    //   });
-    //   return def.promise;
-    // },
 
     revokeAccessFrom: function (admin, user) {
       var def = bluebird.defer();
@@ -262,14 +186,15 @@ module.exports = seq.define('alis_device', {
       return def.promise;
     },
 
-    _getEnergyReadings: function (options) {
+    _getReadings: function (options) {
       var def = bluebird.defer();
 
       options = options || {};
 
       var defaults = {
         summed: true,
-        granularity: '1m'
+        granularity: '1m',
+        
       };
       options = _.assign(_.assign({}, defaults), options);
 
