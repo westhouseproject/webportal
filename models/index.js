@@ -82,8 +82,8 @@ ALISDevice.hasMany(User, {
  * time-series granularity.
  */
 
-function createModel(timeCode, upperGranularModels) {
-  upperGranularModels = upperGranularModels || [];
+function createModel(timeCode, lowerGranularModels) {
+  lowerGranularModels = lowerGranularModels || [];
   return seq.define('readings_' + timeCode, {
     meter_id: {
       type: Sequelize.INTEGER(11),
@@ -109,15 +109,15 @@ function createModel(timeCode, upperGranularModels) {
     freezeTableName: true,
     timestamps: false,
     hooks: {
-      afterCreate: createCollector(upperGranularModels)
+      afterCreate: createCollector(lowerGranularModels)
     }
   });
 }
 
-function createCollector(upperGranularModels) {
+function createCollector(lowerGranularModels) {
   return function (reading, callback) {
     var self = this;
-    async.each(upperGranularModels, function (model, callback) {
+    async.each(lowerGranularModels, function (model, callback) {
       collect(
         reading,
         self,
@@ -125,10 +125,10 @@ function createCollector(upperGranularModels) {
         model.intervalFunction
       ).then(function () {
         callback(null);
-      }).catch(callback);
+      }).catch(function (err) {callback(err);});
     }, function (err) {
-      if (err) { callback(err); }
-      callback(reading);
+      if (err) { return callback(err); }
+      callback(null, reading);
     });
   }
 }
@@ -156,6 +156,16 @@ function collect(instance, instanceModel, model, intervalFunction) {
     ]
   }).complete(function (err, readings) {
     if (err) { return callback(err); }
+    if (!readings.length) {
+      readings = [{
+        meter_id: instance.meter_id,
+        time: new Date(rounded * 1000),
+        sum: 0,
+        mean: 0,
+        min: 0,
+        max: 0
+      }];
+    }
     var data = readings.reduce(function (prev, curr) {
       return {
         meter_id: prev.meter_id,
@@ -178,12 +188,17 @@ function collect(instance, instanceModel, model, intervalFunction) {
     }).complete(function (err, reading) {
       if (err) { return callback(err); }
       if (!reading) {
-        return model.create(data).complete(function (err, reading) {
-          if (err) { return def.reject(err); }
+        return model.create(data).then(function (reading) {
           def.resolve(reading);
+        }).catch(function (err) {
+          // // TODO: err can actually represent an error, even if it is not an
+          // //   instance of an error. Handle such an event.
+          // if (!(err instanceof Error)) { return def.resolve(err); }
+          def.reject(err);
         });
       }
       reading.updateAttributes(data).complete(function (err, reading) {
+        if (!(err instanceof Error)) { return def.resolve(err); }
         if (err) { return def.reject(err); }
         def.resolve(reading);
       });
@@ -309,6 +324,7 @@ var Reading = module.exports.Reading =
             if (err) { return callback(err); }
 
             function doneWriting(err, reading1m) {
+              err && console.log(data);
               if (err) { return callback(err); }
               callback(null, reading);
             }

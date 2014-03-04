@@ -44,14 +44,13 @@ describe('Reading', function () {
   // TODO: test the data that is being read from two different ALIS devices.
 
   describe('bulkCreate', function () {
-    xit('should create new meters on record, for each meter that don\'t exist on record', function (done) {
+    it('should create new meters on record, for each meter that don\'t exist on record', function (done) {
       var jsonstr = fs.readFileSync(path.join(__dirname, 'sample-data.json'), 'utf8');
       jsonstr = _.template(jsonstr, {
         uuid_token: device.uuid_token,
         client_secret: device.client_secret
       });
       var readings = JSON.parse(jsonstr);
-      // TODO: 
       async.eachSeries(readings, function (reading, callback) {
         models.Reading.bulkCreate(reading).then(function () {
           callback(null);
