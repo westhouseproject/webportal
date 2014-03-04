@@ -21,21 +21,27 @@ var roundTime = module.exports.roundTime = function roundTime(date, coeff) {
   return retval;
 };
 
-// 
+var roundTimeFunc = module.exports.roundTimeFunc = function roundTimeFunc(coeff) {
+  return function (date) {
+    return roundTime(date, coeff);
+  };
+}
 
 // TODO: implement this.
-var sunday = module.exports.sinceSunday = function sinceSunday(date) {
-  return date;
+var sunday = module.exports.sunday = function sinceSunday(date) {
+  var dayInMillisecond = 1000 * 60 * 60 * 24;
+  var midnight = roundTime(date, dayInMillisecond);
+  return new Date(midnight.getTime() - midnight.getUTCDay() * dayInMillisecond);
 };
 
 // TODO: implement this.
-var firstOfMonth = module.exports.sinceFirstOfMonth = function sinceFirstOfMonth(date) {
-  return date;
+var firstOfMonth = module.exports.firstOfMonth = function sinceFirstOfMonth(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 };
 
 // TODO: implement this.
-var firstOfYear = module.exports.sinceFirstOfYear = function sinceFirstOfYear(date) {
-  return date;
+var firstOfYear = module.exports.firstOfYear = function sinceFirstOfYear(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
 };
 
 var seq = module.exports.seq = require('./seq');
@@ -76,7 +82,8 @@ ALISDevice.hasMany(User, {
  * time-series granularity.
  */
 
-function createModel(timeCode, interval, nextGranularity) {
+function createModel(timeCode, upperGranularModels) {
+  upperGranularModels = upperGranularModels || [];
   return seq.define('readings_' + timeCode, {
     meter_id: {
       type: Sequelize.INTEGER(11),
@@ -101,19 +108,137 @@ function createModel(timeCode, interval, nextGranularity) {
   }, {
     freezeTableName: true,
     timestamps: false,
-    classMethods: {
-      collectRecent: function (model, interval, reading) {
-      }
+    hooks: {
+      afterCreate: createCollector(upperGranularModels)
     }
-    // classMethods: {
-    //   collectRecent: nextGranularity ?
-    //     createCollector(interval, nextGranularity) :
-    //       createCollector(interval)
-    // }
   });
 }
 
-var Readings1m = createModel('1m');
+function createCollector(upperGranularModels) {
+  return function (reading, callback) {
+    var self = this;
+    async.each(upperGranularModels, function (model, callback) {
+      collect(
+        reading,
+        self,
+        model.model,
+        model.intervalFunction
+      ).then(function () {
+        callback(null);
+      }).catch(callback);
+    }, function (err) {
+      if (err) { callback(err); }
+      callback(reading);
+    });
+  }
+}
+
+/*
+ * @param instance Object is an instance of the granular data, lower than that
+ *   we are cascading to.
+ * @param instanceModel Object is the model that represents `instance`
+ * @param model Object is the model that we are going to cascading to
+ * @param intervalFunction Function is the function that will retrieve the
+ *   interval from which to get the data from.
+ */
+
+function collect(instance, instanceModel, model, intervalFunction) {
+  var def = bluebird.defer();
+  var rounded = Math.floor(
+    intervalFunction(instance.time).getTime() / 1000
+  );
+  instanceModel.findAll({
+    where: [
+      'time > FROM_UNIXTIME(?) && time <= FROM_UNIXTIME(?) && meter_id = ?',
+      rounded,
+      Math.floor(instance.time.getTime() / 1000),
+      instance.meter_id
+    ]
+  }).complete(function (err, readings) {
+    if (err) { return callback(err); }
+    var data = readings.reduce(function (prev, curr) {
+      return {
+        meter_id: prev.meter_id,
+        time: new Date(rounded * 1000),
+        sum: prev.sum + curr.sum,
+        mean:  (prev.mean + curr.mean) / 2,
+        min: Math.min(prev.min, curr.min),
+        max: Math.max(prev.max, curr.max)
+      }
+    }, {
+      meter_id: instance.meter_id,
+      time: new Date(rounded * 1000),
+      sum: readings[0].sum,
+      mean: readings[0].mean,
+      min: readings[0].min,
+      max: readings[0].max
+    });
+    model.find({
+      where: [ 'time = FROM_UNIXTIME(?) AND meter_id = ?', rounded, readings[0].meter_id ]
+    }).complete(function (err, reading) {
+      if (err) { return callback(err); }
+      if (!reading) {
+        return model.create(data).complete(function (err, reading) {
+          if (err) { return def.reject(err); }
+          def.resolve(reading);
+        });
+      }
+      reading.updateAttributes(data).complete(function (err, reading) {
+        if (err) { return def.reject(err); }
+        def.resolve(reading);
+      });
+    });
+  });
+  return def.promise;
+}
+
+var Readings1y = createModel('1y');
+var Readings1mo = createModel('1mo');
+var Readings1w = createModel('1w');
+var Readings1d = createModel(
+  '1d',
+  [
+    {
+      model: Readings1w,
+      intervalFunction: sunday
+    },
+    {
+      model: Readings1mo,
+      intervalFunction: firstOfMonth
+    },
+    {
+      model: Readings1y,
+      intervalFunction: firstOfYear
+    }
+  ]
+)
+var Readings1h = createModel(
+  '1h',
+  [
+    {
+      model: Readings1d,
+      intervalFunction: roundTimeFunc(1000 * 60 * 60 * 24)
+    }
+  ]
+)
+var Readings5m = createModel(
+  '5m',
+  [
+    {
+      model: Readings1h,
+      intervalFunction: roundTimeFunc(1000 * 60 * 60)
+    }
+  ]
+)
+var Readings1m = createModel(
+  '1m',
+  [
+    {
+      model: Readings5m,
+      intervalFunction: roundTimeFunc(1000 * 60 * 5)
+    }
+  ]
+);
 
 /*
  * Holds information about energy usage by every single devices. This is
@@ -163,6 +288,7 @@ var Reading = module.exports.Reading =
           var data = readings.reduce(function (prev, curr) {
             return {
               meter_id: prev.meter_id,
+              // TODO: this shoulded really need to be here.
               time: new Date(rounded * 1000),
               sum: prev.sum + curr.value,
               mean: (prev.mean + curr.value) / 2,
@@ -181,14 +307,16 @@ var Reading = module.exports.Reading =
             where: [ 'time = FROM_UNIXTIME(?) AND meter_id = ?', rounded, reading.meter_id ]
           }).complete(function (err, reading1m) {
             if (err) { return callback(err); }
-            if (!reading1m) {
-              return Readings1m.create(data).complete(function (err, reading1m) {
-                callback(null, reading);
-              });
-            }
-            reading1m.updateAttributes(data).complete(function (err, reading1m) {
+
+            function doneWriting(err, reading1m) {
+              if (err) { return callback(err); }
               callback(null, reading);
-            });
+            }
+
+            if (!reading1m) {
+              return Readings1m.create(data).complete(doneWriting);
+            }
+            reading1m.updateAttributes(data).complete(doneWriting);
           });
         });
       }
