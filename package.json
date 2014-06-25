@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "test": "./node_modules/mocha/bin/mocha"
+    "test": "./node_modules/mocha/bin/mocha",
+    "develop": "NODE_ENV=development nodemon -i public app"
   },
   "devDependencies": {
     "bower": "~1.2.8",
