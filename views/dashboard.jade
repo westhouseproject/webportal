@@ -87,19 +87,19 @@ block content
           | #{maintainer.isAdmin ? ' (Admin)' : '' }
           | #{maintainer.isOwner ? ' (Owner)' : ''}
           //-
-            if !maintainer.isOwner
-              if maintainer.isAdmin
-                form.form-inline(role='form' action='/devices/#{device.uuid_token}/maintainers/#{}')
-                  input(type='hidden' name='_csrf' value=token)
-                  input.btn.btn-link(type='submit' value='Remove admin rights')
-              else
-                form.form-inline(role='form')
-                  input(type='hidden' name='_csrf' value=token)
-                  input(type='hidden' name='_method' value='put')
-                  input(type='hidden' name='admin' value='true')
-                  input.btn.btn-link(type='submit' value='Grant admin rights')
+          if !maintainer.isOwner
+            if maintainer.isAdmin
+              form.form-inline(role='form' action='/devices/#{device.uuid_token}/maintainers/#{}')
+                input(type='hidden' name='_csrf' value=token)
+                input.btn.btn-link(type='submit' value='Remove admin rights')
+            else
               form.form-inline(role='form')
-                input.btn.btn-link(type='submit' value='Revoke access')
+                input(type='hidden' name='_csrf' value=token)
+                input(type='hidden' name='_method' value='put')
+                input(type='hidden' name='admin' value='true')
+                input.btn.btn-link(type='submit' value='Grant admin rights')
+            form.form-inline(role='form')
+              input.btn.btn-link(type='submit' value='Revoke access')
 
     if isAdmin
       form.form-inline(role='form' action='/devices/#{device.uuid_token}/maintainers' method='post')
