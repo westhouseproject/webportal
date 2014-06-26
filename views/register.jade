@@ -12,7 +12,6 @@ block content
       form(role='form', action='/register', method='post')
         input(type='hidden', name='_csrf', value=token)
         +createLargeLabellessField('full_name', 'name', 'Enter your full name')
-        +createLargeLabellessField('username', 'username', 'Choose a username')
         +createLargeLabellessField('email_address', 'email', 'Enter your e-mail')
         +createLargeLabellessField('password', 'password', 'Create a password')
 
