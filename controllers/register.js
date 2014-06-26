@@ -97,85 +97,84 @@ module.exports = function (app) {
     '/register',
     route.ensureUnauthenticated,
     function (req, res, next) {
+
+      // Creating user.
       users.createUser({
         name: req.body.full_name,
         email: req.body.email_address,
         password: req.body.password
       }, function (err, user, meta) {
-        if (err) { return res.send(err); }
-        // TODO: find a more cleaner method for detecting and displaying errors.
 
+        // End of the line.
+        if (err) { return next(err); }
+
+        // The list of possible errors.
+        const invalidErrors = {
+          email_address: [ 'error', 'Email address already in use' ],
+          password: [ 'error', 'Password is too short' ]
+        };
+
+        // If `user` is falsey, then this means that there was an issue with the
+        // inputed values.
         if (!user) {
-          req.flash('error', 'We\'re having a hard time understanding that');
-          if (meta.duplicate) {
-            req.flashField('email_address', 'error', 'Email address already in use', fields.email_address);
+
+          // This means that either the user's email address is invalid, or the
+          // password is too short.
+          if (meta.invalid) {
+            req.flashField.apply(
+              req,
+              ['email_address']
+                .concat(
+                  meta.fields.email &&
+                  (invalidErrors['email'] || [null, null])
+                )
+                .concat([ meta.fields.email_address ])
+            );
+            req.flashFields.apply(
+              req,
+              [ 'password' ]
+                .concat(
+                  meta.fields.password &&
+                  (invalidErrors['password'] || [ null, null ])
+                )
+                .concat([ meta.fields.email_address ])
+            );
+
             return res.redirect('/register');
           }
 
-          if (meta.invalid) {
-            req.flashField('email_address', 'error', 'Invalid email address', fields.email_address);
+          // This means that the email address is a duplicate.
+          if (meta.duplicate) {
+            // Because only email addresses need to be unique, then this would
+            // mean that the email address was a duplicate. Otherwise, well,
+            // we're just not going to catch that at the moment.
+            req.flashField(
+              'email_address',
+              'error',
+              'Email address already in use',
+              meta.fields.email_address
+            );
+
+            return res.redirect('/register');
           }
+
+          // We should not have reached here. Raise an exception.
+          return next(new Error('Unkown error.'));
+
         }
 
-        if (err) {
-          req.flash('error', 'We\'re having a hard time understanding that');
-
-          // This means that credentials provided by the user was duplicate.
-          if (duplicateErrorChecker.isDuplicate(err)) {
-            return (function () {
-
-              // Get information about the faulty field.
-              var field = duplicateErrorChecker.getField(err);
-
-              // Push out information regarding the fields.
-              req.flashField('full_name', null, null, req.body.full_name);
-              if (field.field === 'email_address') {
-                req.flashField('email_address', 'error', 'Email address already in use', field.value);
-              } else {
-                req.flashField('email_address', null, null, req.body.email_address);
-              }
-
-              res.redirect('/register');
-            })();
+        // Send an email verification to the user that just signed up.
+        sendVerification(
+          user,
+          './email/verification.txt.lodash',
+          'Welcome to ALIS Web Portal',
+          function (err, response) {
+            if (err) { return console.error(err); }
+            console.log(response.message);
           }
+        );
 
-          // TODO: This if-else block is really bad. Refactor it.
-          if (!(err instanceof Error) || err.name === 'ValidationErrors') {
-            return (function () {
-
-              if (err.full_name) {
-                req.flashField('full_name', 'error', 'Something went wrong here... Our bad...', req.body.full_name);
-              } else {
-                req.flashField('full_name', null, null, req.body.full_name);
-              }
-              if (err.username || err.chosen_username) {
-                req.flashField('username', 'error', 'Only alpha-numeric characters, hypens and underscores are allowed, and can only have a length between 1 and 35 characters', req.body.username)
-              } else {
-                req.flashField('username', null, null, req.body.username);
-              }
-              if (err.email_address) {
-                req.flashField('email_address', 'error', 'Must be a valid email address', req.body.email_address);
-              } else {
-                req.flashField('email_address', null, null, req.body.email_address);
-              }
-              if (err.password) {
-                req.flashField('password', 'error', 'Password must have a minimum length of 6 characters');
-              } else {
-                req.flashField('password', null, null);
-              }
-
-              res.redirect('/register');
-            })();
-          }
-
-          return next(err);
-        }
-
-        sendVerification(user, './email/verification.txt.lodash', 'Welcome to ALIS Web Portal', function (err, response) {
-          if (err) { return console.error(err); }
-          console.log(response.message);
-        });
-
+        // ???
         passport.authenticate(
           'local',
           {
@@ -184,15 +183,6 @@ module.exports = function (app) {
           }
         )(req, res, next);
       });
-      models
-        .User
-        .create({
-          full_name: req.body.full_name,
-          username: req.body.username,
-          email_address: req.body.email_address,
-          password: req.body.password
-        }).complete(function (err, user) {
-        });
     }
   );
 

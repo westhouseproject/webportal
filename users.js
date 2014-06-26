@@ -8,11 +8,11 @@ module.exports = users;
 
 module.exports.createUser = function (options, cb) {
   // First, perform the validations
-  if (!validator.isEmail(options.email)) {
+  if (!validator.isEmail(options.email) || !validator.isLength(options.password)) {
     return cb(null, false, {
       invalid: true,
       fields: {
-        email_address: options.email
+        email: options.email
       }
     });
   }
