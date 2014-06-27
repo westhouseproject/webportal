@@ -18,12 +18,12 @@ module.exports = function (app) {
     fs.readFile(filename, 'utf8', function (err, data) {
       transport.sendMail({
         from: 'westhouse@sfu.ca',
-        to: user.email_address,
+        to: user.email,
         subject: subject,
         text: _.template(data, {
           name: user.full_name,
           link: settings.get('rootHost') + '/register/verify?' + querystring.stringify({
-            email: user.email_address,
+            email: user.email,
             verification: user.verification_code
           })
         })
@@ -110,34 +110,54 @@ module.exports = function (app) {
 
         // The list of possible errors.
         const invalidErrors = {
-          email_address: [ 'error', 'Email address already in use' ],
+          email_address: [ 'error', 'Not a valid email address' ],
           password: [ 'error', 'Password is too short' ]
         };
 
         // If `user` is falsey, then this means that there was an issue with the
         // inputed values.
         if (!user) {
+          req.flash('error', 'There was some issues with your input');
 
           // This means that either the user's email address is invalid, or the
           // password is too short.
           if (meta.invalid) {
+
+            req.flashField(
+              'full_name', null, null,
+              (meta.fields.name && meta.fields.name.value) || ''
+            );
+
             req.flashField.apply(
               req,
               ['email_address']
                 .concat(
-                  meta.fields.email &&
-                  (invalidErrors['email'] || [null, null])
+                  (
+                    meta.fields.email &&
+                    meta.fields.email.invalid &&
+                    invalidErrors['email_address']
+                  ) || [null, null]
                 )
-                .concat([ meta.fields.email_address ])
+                .concat([
+                  (
+                    meta.fields.email &&
+                    meta.fields.email.value
+                  ) || ''
+                ])
             );
-            req.flashFields.apply(
+
+            req.flashField.apply(
               req,
               [ 'password' ]
                 .concat(
-                  meta.fields.password &&
-                  (invalidErrors['password'] || [ null, null ])
+                  (
+                    meta.fields.password &&
+                    meta.fields.password.invalid &&
+                    invalidErrors['password']
+                  ) || [null, null]
                 )
-                .concat([ meta.fields.email_address ])
+                // Don't relay back the password.
+                .concat([ '' ])
             );
 
             return res.redirect('/register');
@@ -145,6 +165,14 @@ module.exports = function (app) {
 
           // This means that the email address is a duplicate.
           if (meta.duplicate) {
+            // Name will always be valid.
+            req.flashField(
+              'full_name',
+              null,
+              null,
+              (meta.fields.name && meta.fields.name.value) || ''
+            );
+
             // Because only email addresses need to be unique, then this would
             // mean that the email address was a duplicate. Otherwise, well,
             // we're just not going to catch that at the moment.
@@ -152,8 +180,10 @@ module.exports = function (app) {
               'email_address',
               'error',
               'Email address already in use',
-              meta.fields.email_address
+              meta.fields.email_address.value
             );
+
+            // Don't relay back the password.
 
             return res.redirect('/register');
           }
@@ -174,7 +204,7 @@ module.exports = function (app) {
           }
         );
 
-        // ???
+        // Log the user in afterwards.
         passport.authenticate(
           'local',
           {

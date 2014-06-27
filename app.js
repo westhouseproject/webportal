@@ -12,6 +12,7 @@ const marked = require('marked');
 const cheerio = require('cheerio');
 const querystring = require('querystring');
 const fs = require('fs');
+const users = require('./users');
 
 /*
  * An error that is thrown when the user ID in the session does not match
@@ -25,10 +26,12 @@ function UserSessionNotFoundError(message) {
 UserSessionNotFoundError.prototype = Error.prototype;
 
 passport.serializeUser(function (user, done) {
+  console.log('Good.');
   done(null, user.email);
 });
 
 passport.deserializeUser(function (email, done) {
+  console.log('Good.');
   // models
   //   .User
   //   .find(id)
@@ -59,6 +62,7 @@ passport.deserializeUser(function (email, done) {
 
 passport.use(new LocalStrategy(
   function (email, password, done) {
+    console.log('Good.');
     // models
     //   .User
     //   .authenticate(username, password)
@@ -79,26 +83,33 @@ passport.use(new LocalStrategy(
     //     }
     //     done(err);
     //   });
-    users.find({ email: email }, function (err, docs) {
-      if (err) { return done(err); }
-      if (!docs.length) {
-        return done(null, false, {
-          message: 'Incorrect username or password'
-        });
-      }
+    // users.find({ email: email }, function (err, docs) {
+    //   if (err) { return done(err); }
+    //   if (!docs.length) {
+    //     return done(null, false, {
+    //       message: 'Incorrect username or password'
+    //     });
+    //   }
 
-      var user = docs[0];
+    //   var user = docs[0];
 
-      bcrypt.compare(user.password, user.hash, function (err, res) {
+    //   bcrypt.compare(user.password, user.hash, function (err, res) {
+    //     if (err) { return done(err); }
+    //     if (!res) {
+    //       return done(null, false, {
+    //         message: 'Incorrect username or password'
+    //       });
+    //     }
+    //     done(null, user);
+    //   });
+    // });
+    users.authenticateUser(
+      { email: email, password: password },
+      function (err, user) {
         if (err) { return done(err); }
-        if (!res) {
-          return done(null, false, {
-            message: 'Incorrect username or password'
-          });
-        }
         done(null, user);
-      });
-    });
+      }
+    )
   }
 ));
 

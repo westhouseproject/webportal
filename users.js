@@ -7,12 +7,28 @@ const users = new Datastore({ filename: './.db/users', autoload: true });
 module.exports = users;
 
 module.exports.createUser = function (options, cb) {
+  const minPasswordLength = 6;
+
   // First, perform the validations
-  if (!validator.isEmail(options.email) || !validator.isLength(options.password)) {
+  if (
+    !validator.isEmail(options.email) ||
+    !validator.isLength(options.password, 6)
+  ) {
     return cb(null, false, {
       invalid: true,
       fields: {
-        email: options.email
+        name: {
+          value: options.name,
+          invalid: false
+        },
+        email: {
+          value: options.email,
+          invalid: !validator.isEmail(options.email)
+        },
+        password: {
+          value: options.password,
+          invalid: !validator.isLength(options.password, 6)
+        }
       }
     });
   }
@@ -28,7 +44,9 @@ module.exports.createUser = function (options, cb) {
           return cb(null, false, {
             duplicate: true,
             fields: {
-              email_address: options.email
+              name: { value: options.name, invalid: false },
+              email_address: { value: options.email, invalid: true },
+              password: { value: options.password, invalid: false }
             }
           });
         }
