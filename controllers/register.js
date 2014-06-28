@@ -204,6 +204,8 @@ module.exports = function (app) {
           }
         );
 
+        req.body.username = req.body.email_address;
+
         // Log the user in afterwards.
         passport.authenticate(
           'local',

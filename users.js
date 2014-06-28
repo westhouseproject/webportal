@@ -93,7 +93,7 @@ module.exports.authenticateUser = function (options, cb) {
 
     // Next, compare the passwords.
     function (user, callback) {
-      bcrypt.compare(options.password, user, hash, function (err, res) {
+      bcrypt.compare(options.password, user.hash, function (err, res) {
         if (err) { return callback(err); }
         if (!res) {
           return cb(null, false, {
