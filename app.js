@@ -170,7 +170,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 app.use(function (req, res, next) {
-  if (req.user && !req.user.isVerified()) {
+  if (req.user && !req.user.verified) {
     req.flash('success', 'Your account has been created. Please check your email for a verification code, or <a href="/register/resend" target="_blank">click here</a> to send another.');
   }
   next();

@@ -68,7 +68,8 @@ module.exports.createUser = function (options, cb) {
       users.insert({
         name: options.name,
         email: options.email,
-        hash: hash
+        hash: hash,
+        verified: true
       }, callback);
     }
   ], cb);
