@@ -12,7 +12,7 @@ block content
       form(role='form', action='/register', method='post')
         input(type='hidden', name='_csrf', value=token)
         +createLargeLabellessField('full_name', 'name', 'Enter your full name')
-        +createLargeLabellessField('email_address', 'email', 'Enter your e-mail')
+        +createLargeLabellessField('email_address', 'email', 'Enter your email address')
         +createLargeLabellessField('password', 'password', 'Create a password')
 
         input.btn.btn-primary.btn-lg.btn-block(type='submit', value='Sign Up')

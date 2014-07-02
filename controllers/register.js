@@ -9,28 +9,6 @@ const users = require('../users');
 
 module.exports = function (app) {
 
-  /*
-   * Sends a verification code to the specified user.
-   */
-
-  function sendVerification(user, filename, subject, callback) {
-    callback = callback || function () {};
-    fs.readFile(filename, 'utf8', function (err, data) {
-      transport.sendMail({
-        from: 'westhouse@sfu.ca',
-        to: user.email,
-        subject: subject,
-        text: _.template(data, {
-          name: user.full_name,
-          link: settings.get('rootHost') + '/register/verify?' + querystring.stringify({
-            email: user.email,
-            verification: user.verification_code
-          })
-        })
-      }, callback);
-    });
-  }
-
   var duplicateErrorChecker = {
 
     isDuplicate: function (err) {
@@ -68,31 +46,7 @@ module.exports = function (app) {
     }
   );
 
-  app.get(
-    '/register/resend',
-    route.ensureAuthenticated,
-    route.ensureUnverified,
-    function (req, res, next) {
-      req.user.resetVerificationCode().complete(function (err, user) {
-        if (err) { return next(err); }
-        sendVerification(user, './email/verification-reset.txt.lodash', 'Just one more step...', function (err, response) {
-          if (err) { return console.error(err); }
-          console.log(response.message);
-        });
-        next();
-      });
-    },
-    function (req, res, next) {
-      if (req.accepts('html')) { return next(); }
-      res.json({ message: 'success' });
-    },
-    function (req, res, next) {
-      req.flash('success', 'A new verification code has been sent to your email');
-      res.redirect('/');
-    }
-  );
-
-  // TODO: require a password to change the email addres.
+  // TODO: require a password to change the email address.
   app.post(
     '/register',
     route.ensureUnauthenticated,
@@ -110,7 +64,7 @@ module.exports = function (app) {
 
         // The list of possible errors.
         const invalidErrors = {
-          email_address: [ 'error', 'Not a valid email address' ],
+          email_address: [ 'error', 'Not a valid email_address' ],
           password: [ 'error', 'Password is too short' ]
         };
 
@@ -173,7 +127,7 @@ module.exports = function (app) {
               (meta.fields.name && meta.fields.name.value) || ''
             );
 
-            // Because only email addresses need to be unique, then this would
+            // Because only email address need to be unique, then this would
             // mean that the email address was a duplicate. Otherwise, well,
             // we're just not going to catch that at the moment.
             req.flashField(
@@ -193,18 +147,7 @@ module.exports = function (app) {
 
         }
 
-        // Send an email verification to the user that just signed up.
-        sendVerification(
-          user,
-          './email/verification.txt.lodash',
-          'Welcome to ALIS Web Portal',
-          function (err, response) {
-            if (err) { return console.error(err); }
-            console.log(response.message);
-          }
-        );
-
-        req.body.username = req.body.email_address;
+        req.body.username = req.body.email_address
 
         // Log the user in afterwards.
         passport.authenticate(
@@ -218,15 +161,4 @@ module.exports = function (app) {
     }
   );
 
-  app.get(
-    '/register/verify',
-    route.ensureAuthenticated,
-    route.ensureUnverified,
-    function (req, res, next) {
-      req.user.verify(req.query.verification, req.query.email).then(function (user) {
-        req.flash('success', 'Your account is now verified!');
-        res.redirect('/');
-      }).catch(next);
-    }
-  )
 };

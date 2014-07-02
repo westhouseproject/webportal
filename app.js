@@ -14,6 +14,8 @@ const querystring = require('querystring');
 const fs = require('fs');
 const users = require('./users');
 
+// TODO: delete all unverified users that are over a week old.
+
 /*
  * An error that is thrown when the user ID in the session does not match
  * on record.
@@ -26,28 +28,10 @@ function UserSessionNotFoundError(message) {
 UserSessionNotFoundError.prototype = Error.prototype;
 
 passport.serializeUser(function (user, done) {
-  console.log('Good.');
   done(null, user.email);
 });
 
 passport.deserializeUser(function (email, done) {
-  console.log('Good.');
-  // models
-  //   .User
-  //   .find(id)
-  //   .success(function (user) {
-  //     if (!user) {
-  //       return done(new UserSessionNotFoundError('For some reason, we can\'t seem to be able to find a session associated with you...'));
-  //     }
-  //     user.getALISDevice().complete(function (err, devices) {
-  //       if (err) { done(err); }
-  //       user.devices = devices;
-  //       done(null, user);
-  //     })
-  //   })
-  //   .error(function (err) {
-  //     done(err);
-  //   });
   users.find({ email: email }, function (err, docs) {
     if (err) { return done(err); }
     if (!docs.length) {
@@ -62,51 +46,15 @@ passport.deserializeUser(function (email, done) {
 
 passport.use(new LocalStrategy(
   function (email, password, done) {
-    console.log('Good.');
-    // models
-    //   .User
-    //   .authenticate(username, password)
-    //   .then(function (user) {
-    //     if (!user) {
-    //       return done(null, false, {
-    //         message: 'Incorrect username or password'
-    //       });
-    //     }
-
-    //     done(null, user);
-    //   })
-    //   .catch(function (err) {
-    //     if (err.name === 'UnauthorizedError') {
-    //       return done(null, false, {
-    //         message: 'Incorrect username or password'
-    //       });
-    //     }
-    //     done(err);
-    //   });
-    // users.find({ email: email }, function (err, docs) {
-    //   if (err) { return done(err); }
-    //   if (!docs.length) {
-    //     return done(null, false, {
-    //       message: 'Incorrect username or password'
-    //     });
-    //   }
-
-    //   var user = docs[0];
-
-    //   bcrypt.compare(user.password, user.hash, function (err, res) {
-    //     if (err) { return done(err); }
-    //     if (!res) {
-    //       return done(null, false, {
-    //         message: 'Incorrect username or password'
-    //       });
-    //     }
-    //     done(null, user);
-    //   });
-    // });
     users.authenticateUser(
       { email: email, password: password },
       function (err, user) {
         if (err) { return done(err); }
+        if (!user) {
+          return done(null, false, {
+            message: 'Email address or password don\'t match.'
+          });
+      }
         done(null, user);
       }
     )

@@ -1,0 +1,17 @@
+extends layout
+
+block content
+  .container-fluid
+    table.table
+      thead
+        tr
+          th Name
+          th Email address
+          th Joined
+      tbody
+        each user in users
+          tr
+            th #{user.name}
+            th #{user.email}
+            //- TODO: format this
+            th #{user.created}

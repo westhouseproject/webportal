@@ -6,6 +6,10 @@ const validator = require('validator');
 const users = new Datastore({ filename: './.db/users', autoload: true });
 module.exports = users;
 
+// TODO: Limit the number of allowed unverified users.
+// TODO: possible vector of attack? Denying the creation of additional users by
+//   flooding the number of unverified users?
+
 module.exports.createUser = function (options, cb) {
   const minPasswordLength = 6;
 
@@ -45,7 +49,7 @@ module.exports.createUser = function (options, cb) {
             duplicate: true,
             fields: {
               name: { value: options.name, invalid: false },
-              email_address: { value: options.email, invalid: true },
+              email: { value: options.email, invalid: true },
               password: { value: options.password, invalid: false }
             }
           });
@@ -69,7 +73,8 @@ module.exports.createUser = function (options, cb) {
         name: options.name,
         email: options.email,
         hash: hash,
-        verified: true
+        verified: true,
+        created: new Date().toISOString()
       }, callback);
     }
   ], cb);
@@ -84,7 +89,7 @@ module.exports.authenticateUser = function (options, cb) {
       }, function (err, users) {
         if (err) { return callback(err); }
         if (!users || !users.length) {
-          return cb(null, null, {
+          return cb(null, false, {
             notFound: true
           });
         }
@@ -101,8 +106,31 @@ module.exports.authenticateUser = function (options, cb) {
             passwordMismatch: true
           })
         }
-        callback(null, user);
+        var retval = {};
+        for (var key in user) {
+          retval[key] = user[key];
+        }
+        delete retval.hash;
+        retval.created = new Date(retval.created);
+        callback(null, retval);
       });
     }
   ], cb);
+};
+
+module.exports.getUsers = function (cb) {
+  users.find({}, function (err, docs) {
+    if (err) { return cb(err); }
+    var users = docs.map(function (user) {
+      var retval = {};
+      for (var key in user) {
+        retval[key] = user[key];
+      }
+      delete retval.hash;
+      console.log(retval.created);
+      retval.created = new Date(retval.created);
+      return retval;
+    });
+    cb(null, users);
+  });
 };
