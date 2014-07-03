@@ -67,13 +67,22 @@ module.exports.createUser = function (options, cb) {
       });
     },
 
-    // Now, insert the user
     function (hash, callback) {
+      module.exports.getUsers(function (err, users) {
+        if (err) { return callback(err); }
+        callback(null, users.length, hash);
+      });
+    },
+
+    // Now, insert the user
+    function (usersLength, hash, callback) {
       users.insert({
         name: options.name,
         email: options.email,
         hash: hash,
-        verified: true,
+        isAdmin: !usersLength,
+        verified: !usersLength,
+        isOwner: !usersLength,
         created: new Date().toISOString()
       }, callback);
     }

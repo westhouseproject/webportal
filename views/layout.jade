@@ -4,13 +4,18 @@ html(lang='en')
     meta(charset='utf-8')
     title ALIS Web Portal
 
-    meta(name='viewport', content='width=device-width, initial-scale=1')
+    meta(name='viewport' content='width=device-width, initial-scale=1')
 
-    link(rel='stylesheet', href='/components/bootstrap/dist/css/bootstrap.css')
-    link(rel='stylesheet', href='/css/fontello.css')
-    link(rel='stylesheet', href='/css/layout.css')
+    link(rel='stylesheet' href='/components/bootstrap/dist/css/bootstrap.css')
+    link(rel='stylesheet' href='/css/fontello.css')
+    link(rel='stylesheet' href='/css/layout.css')
 
     block styles
+
+    script(src='/components/jquery/dist/jquery.js')
+
+    block scripts-head
+
   body
 
     //- TODO: find a method to ensure there aren't any redundant mixins defined.
@@ -68,7 +73,10 @@ html(lang='en')
 
     block content
 
-    script(src='/components/jquery/dist/jquery.js')
+    
     script(src='/components/bootstrap/dist/js/bootstrap.js')
+
+    if (user && user.isAdmin)
+      script(src='/js/admin.js')
 
     block scripts

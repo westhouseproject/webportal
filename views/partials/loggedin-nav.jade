@@ -8,10 +8,12 @@ ul.nav.navbar-nav.navbar-right
       |  
       b.caret
     ul.dropdown-menu
-      li
-        a(href='/accounts')
-          span.icon-group
-          |  Accounts
+      if (user.isAdmin)
+        li
+          a(href='/accounts')
+            span.icon-group
+            |  Accounts
+        li.divider
       li
         a(href='/logout')
           span.glyphicon.glyphicon-log-out

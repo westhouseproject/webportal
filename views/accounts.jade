@@ -1,17 +1,55 @@
 extends layout
 
+block styles
+  link(rel='stylesheet' href='/css/accounts.css')
+
+block scripts-head
+  script(src='/components/angular/angular.js')
+  script(src='/components/lodash/dist/lodash.js')
+  script(src='/js/accounts.js')
+
 block content
-  .container-fluid
+  .container-fluid(ng-app='users' ng-controller='UsersController')
     table.table
       thead
         tr
+          th
           th Name
           th Email address
           th Joined
+          th Admin
       tbody
-        each user in users
+        tr(ng-repeat='user in users | filter:{verified:true}')
+          td
+            span.glyphicon.glyphicon-remove.remove-button
+          td {{user.name}}
+          td {{user.email}}
+          td {{user.created}}
+          td {{user.isAdmin}}
+
+    div(ng-if='hasUnverified(users)')
+      .row
+        .col-xs-6
+          h3 Pending Users
+        .col-xs-6.text-right
+          .button-box
+            button.btn.btn-primary.disabled Verify
+
+      table.table
+        thead
           tr
-            th #{user.name}
-            th #{user.email}
+            th 
+            th Name
+            th Email address
+            th Joined
+            th.text-right Verify
+        tbody
+          tr(ng-repeat='user in users | filter:{verified:false}')
+            td
+              span.glyphicon.glyphicon-remove.remove-button
+            td {{user.name}}
+            td {{user.email}}
             //- TODO: format this
-            th #{user.created}
+            td {{user.created}}
+            td.text-right
+              input(type='checkbox')
