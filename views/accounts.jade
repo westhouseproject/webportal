@@ -4,8 +4,8 @@ block styles
   link(rel='stylesheet' href='/css/accounts.css')
 
 block scripts-head
-  script(src='/components/angular/angular.js')
   script(src='/components/lodash/dist/lodash.js')
+  script(src='/components/async/lib/async.js')
   script(src='/js/accounts.js')
 
 block content
@@ -33,7 +33,7 @@ block content
           h3 Pending Users
         .col-xs-6.text-right
           .button-box
-            button.btn.btn-primary.disabled Verify
+            button.btn.btn-primary(ng-click='verify()' ng-class='{"disabled": !pendingApproval(users)}').disabled Verify
 
       table.table
         thead
@@ -52,4 +52,4 @@ block content
             //- TODO: format this
             td {{user.created}}
             td.text-right
-              input(type='checkbox')
+              input(type='checkbox' ng-model='user.pendingApproval')

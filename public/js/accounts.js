@@ -1,7 +1,4 @@
-
-
 var users = angular.module('users', []);
-
 
 users.controller(
   'UsersController',
@@ -17,6 +14,34 @@ users.controller(
         });
       };
 
+      $scope.pendingApproval = function (users) {
+        return _.some(users, function (user) {
+          return user.pendingApproval;
+        });
+      };
+
+      $scope.verify = function () {
+        var toVerify = _.filter($scope.users, function (user) {
+          return user.pendingApproval;
+        });
+        async.each(toVerify, function (user, callback) {
+          var sanitized = {};
+          for (var key in user) {
+            if (key !== '_id') {
+              sanitized[key] = user[key]
+            }
+          }
+          var sanitized = {verified: true};
+          $http({method: 'PUT', url: '/users/' + user._id, data: sanitized})
+            .success(function (data, status, headers, config) {
+              user.verified = true;
+            })
+            .error(function (data, status, headers, config) {
+            });
+        }, function (err) {
+
+        });
+      };
 
       $http({method: 'GET', url: '/users'})
         .success(function (data, status, headers, config) {
