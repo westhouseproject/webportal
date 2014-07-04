@@ -15,7 +15,6 @@
     "express": "~3.4.8",
     "nconf": "~0.6.9",
     "validator": "~3.2.1",
-    "sequelize": "~1.7.x",
     "mysql": "~2.0.1",
     "lodash": "~2.4.1",
     "less-middleware": "~0.1.15",
@@ -27,6 +26,7 @@
     "bcrypt": "~0.7.7",
     "bluebird": "~1.0.4",
     "marked": "~0.3.1",
-    "cheerio": "~0.13.1"
+    "cheerio": "~0.13.1",
+    "nedb": "^0.10.5"
   }
 }

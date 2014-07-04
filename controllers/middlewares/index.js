@@ -46,3 +46,17 @@ function ensureVerified(req, res, next) {
   req.flash('error', 'You need to be verified.');
   res.redirect('/');
 }
+
+module.exports.onlyAdmin = onlyAdmin;
+function onlyAdmin(req, res, next) {
+  if (!req.user || req.user.isAdmin) { return next(); }
+
+  const userErrorMessage = 'You need to be an admin to do that.';
+
+  if (req.accepts('json')) {
+    return res.json(403, { 'message': userErrorMessage });
+  }
+
+  req.flash('error', userErrorMessage);
+  res.redirect('/');
+}

@@ -1,35 +1,13 @@
-var route = require('./middlewares');
-var fs = require('fs');
-var passport = require('passport');
-var transport = require('./transport');
-var _ = require('lodash');
-var settings = require('../settings');
-var querystring = require('querystring');
-var models = require('../models');
+const route = require('./middlewares');
+const fs = require('fs');
+const passport = require('passport');
+const transport = require('./transport');
+const _ = require('lodash');
+const settings = require('../settings');
+const querystring = require('querystring');
+const users = require('../users');
 
 module.exports = function (app) {
-
-  /*
-   * Sends a verification code to the specified user.
-   */
-
-  function sendVerification(user, filename, subject, callback) {
-    callback = callback || function () {};
-    fs.readFile(filename, 'utf8', function (err, data) {
-      transport.sendMail({
-        from: 'westhouse@sfu.ca',
-        to: user.email_address,
-        subject: subject,
-        text: _.template(data, {
-          name: user.full_name,
-          link: settings.get('rootHost') + '/register/verify?' + querystring.stringify({
-            email: user.email_address,
-            verification: user.verification_code
-          })
-        })
-      }, callback);
-    });
-  }
 
   var duplicateErrorChecker = {
 
@@ -68,128 +46,119 @@ module.exports = function (app) {
     }
   );
 
-  app.get(
-    '/register/resend',
-    route.ensureAuthenticated,
-    route.ensureUnverified,
-    function (req, res, next) {
-      req.user.resetVerificationCode().complete(function (err, user) {
-        if (err) { return next(err); }
-        sendVerification(user, './email/verification-reset.txt.lodash', 'Just one more step...', function (err, response) {
-          if (err) { return console.error(err); }
-          console.log(response.message);
-        });
-        next();
-      });
-    },
-    function (req, res, next) {
-      if (req.accepts('html')) { return next(); }
-      res.json({ message: 'success' });
-    },
-    function (req, res, next) {
-      req.flash('success', 'A new verification code has been sent to your email');
-      res.redirect('/');
-    }
-  );
-
-  // TODO: require a password to change the email addres.
+  // TODO: require a password to change the email address.
   app.post(
     '/register',
     route.ensureUnauthenticated,
     function (req, res, next) {
-      models
-        .User
-        .create({
-          full_name: req.body.full_name,
-          username: req.body.username,
-          email_address: req.body.email_address,
-          password: req.body.password
-        }).complete(function (err, user) {
-          // TODO: find a more cleaner method for detecting and displaying errors.
-          if (err) {
-            req.flash('error', 'We\'re having a hard time understanding that');
 
-            // This means that credentials provided by the user was duplicate.
-            if (duplicateErrorChecker.isDuplicate(err)) {
-              return (function () {
+      // Creating user.
+      users.createUser({
+        name: req.body.full_name,
+        email: req.body.email_address,
+        password: req.body.password
+      }, function (err, user, meta) {
 
-                // Get information about the faulty field.
-                var field = duplicateErrorChecker.getField(err);
+        // End of the line.
+        if (err) { return next(err); }
 
-                // Push out information regarding the fields.
-                req.flashField('full_name', null, null, req.body.full_name);
-                if (field.field === 'username') {
-                  req.flashField('username', 'error', 'Username already in use', field.value);
-                } else {
-                  req.flashField('username', null, null, req.body.username);
-                }
-                if (field.field === 'email_address') {
-                  req.flashField('email_address', 'error', 'Email address already in use', field.value);
-                } else {
-                  req.flashField('email_address', null, null, req.body.email_address);
-                }
+        // The list of possible errors.
+        const invalidErrors = {
+          email_address: [ 'error', 'Not a valid email_address' ],
+          password: [ 'error', 'Password is too short' ]
+        };
 
-                res.redirect('/register');
-              })();
-            }
+        // If `user` is falsey, then this means that there was an issue with the
+        // inputed values.
+        if (!user) {
+          req.flash('error', 'There was some issues with your input');
 
-            // TODO: This if-else block is really bad. Refactor it.
-            if (!(err instanceof Error) || err.name === 'ValidationErrors') {
-              return (function () {
+          // This means that either the user's email address is invalid, or the
+          // password is too short.
+          if (meta.invalid) {
 
-                if (err.full_name) {
-                  req.flashField('full_name', 'error', 'Something went wrong here... Our bad...', req.body.full_name);
-                } else {
-                  req.flashField('full_name', null, null, req.body.full_name);
-                }
-                if (err.username || err.chosen_username) {
-                  req.flashField('username', 'error', 'Only alpha-numeric characters, hypens and underscores are allowed, and can only have a length between 1 and 35 characters', req.body.username)
-                } else {
-                  req.flashField('username', null, null, req.body.username);
-                }
-                if (err.email_address) {
-                  req.flashField('email_address', 'error', 'Must be a valid email address', req.body.email_address);
-                } else {
-                  req.flashField('email_address', null, null, req.body.email_address);
-                }
-                if (err.password) {
-                  req.flashField('password', 'error', 'Password must have a minimum length of 6 characters');
-                } else {
-                  req.flashField('password', null, null);
-                }
+            req.flashField(
+              'full_name', null, null,
+              (meta.fields.name && meta.fields.name.value) || ''
+            );
 
-                res.redirect('/register');
-              })();
-            }
+            req.flashField.apply(
+              req,
+              ['email_address']
+                .concat(
+                  (
+                    meta.fields.email &&
+                    meta.fields.email.invalid &&
+                    invalidErrors['email_address']
+                  ) || [null, null]
+                )
+                .concat([
+                  (
+                    meta.fields.email &&
+                    meta.fields.email.value
+                  ) || ''
+                ])
+            );
 
-            return next(err);
+            req.flashField.apply(
+              req,
+              [ 'password' ]
+                .concat(
+                  (
+                    meta.fields.password &&
+                    meta.fields.password.invalid &&
+                    invalidErrors['password']
+                  ) || [null, null]
+                )
+                // Don't relay back the password.
+                .concat([ '' ])
+            );
+
+            return res.redirect('/register');
           }
 
-          sendVerification(user, './email/verification.txt.lodash', 'Welcome to ALIS Web Portal', function (err, response) {
-            if (err) { return console.error(err); }
-            console.log(response.message);
-          });
+          // This means that the email address is a duplicate.
+          if (meta.duplicate) {
+            // Name will always be valid.
+            req.flashField(
+              'full_name',
+              null,
+              null,
+              (meta.fields.name && meta.fields.name.value) || ''
+            );
 
-          passport.authenticate(
-            'local',
-            {
-              successRedirect: '/',
-              failureRedirect: '/'
-            }
-          )(req, res, next);
-        });
+            // Because only email address need to be unique, then this would
+            // mean that the email address was a duplicate. Otherwise, well,
+            // we're just not going to catch that at the moment.
+            req.flashField(
+              'email_address',
+              'error',
+              'Email address already in use',
+              meta.fields.email_address.value
+            );
+
+            // Don't relay back the password.
+
+            return res.redirect('/register');
+          }
+
+          // We should not have reached here. Raise an exception.
+          return next(new Error('Unkown error.'));
+
+        }
+
+        req.body.username = req.body.email_address
+
+        // Log the user in afterwards.
+        passport.authenticate(
+          'local',
+          {
+            successRedirect: '/',
+            failureRedirect: '/'
+          }
+        )(req, res, next);
+      });
     }
   );
 
-  app.get(
-    '/register/verify',
-    route.ensureAuthenticated,
-    route.ensureUnverified,
-    function (req, res, next) {
-      req.user.verify(req.query.verification, req.query.email).then(function (user) {
-        req.flash('success', 'Your account is now verified!');
-        res.redirect('/');
-      }).catch(next);
-    }
-  )
 };

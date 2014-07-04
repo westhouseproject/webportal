@@ -1,19 +1,20 @@
-var express = require('express');
-var path = require('path');
-var passport = require('passport');
-var settings = require('./settings');
-var Sequelize = require('sequelize');
-var validator = require('validator');
-var crypto = require('crypto');
-var _ = require('lodash');
-var lessMiddleware = require('less-middleware');
-var LocalStrategy = require('passport-local').Strategy;
-var RedisStore = require('connect-redis')(express);
-var marked = require('marked');
-var cheerio = require('cheerio');
-var querystring = require('querystring');
-var fs = require('fs');
-var models = require('./models');
+const express = require('express');
+const path = require('path');
+const passport = require('passport');
+const settings = require('./settings');
+const validator = require('validator');
+const crypto = require('crypto');
+const _ = require('lodash');
+const lessMiddleware = require('less-middleware');
+const LocalStrategy = require('passport-local').Strategy;
+const RedisStore = require('connect-redis')(express);
+const marked = require('marked');
+const cheerio = require('cheerio');
+const querystring = require('querystring');
+const fs = require('fs');
+const users = require('./users');
+
+// TODO: delete all unverified users that are over a week old.
 
 /*
  * An error that is thrown when the user ID in the session does not match
@@ -27,50 +28,36 @@ function UserSessionNotFoundError(message) {
 UserSessionNotFoundError.prototype = Error.prototype;
 
 passport.serializeUser(function (user, done) {
-  done(null, user.id);
+  done(null, user.email);
 });
 
-passport.deserializeUser(function (id, done) {
-  models
-    .User
-    .find(id)
-    .success(function (user) {
-      if (!user) {
-        return done(new UserSessionNotFoundError('For some reason, we can\'t seem to be able to find a session associated with you...'));
-      }
-      user.getALISDevice().complete(function (err, devices) {
-        if (err) { done(err); }
-        user.devices = devices;
-        done(null, user);
-      })
-    })
-    .error(function (err) {
-      done(err);
-    });
+passport.deserializeUser(function (email, done) {
+  users.find({ email: email }, function (err, docs) {
+    if (err) { return done(err); }
+    if (!docs.length) {
+      return done(new UserSessionNotFoundError(
+        'For some reason, we can\'t seem to be able to find a session ' +
+        'associated with you...'
+      ));
+    }
+    done(null, docs[0]);
+  });
 });
 
 passport.use(new LocalStrategy(
-  function (username, password, done) {
-    models
-      .User
-      .authenticate(username, password)
-      .then(function (user) {
+  function (email, password, done) {
+    users.authenticateUser(
+      { email: email, password: password },
+      function (err, user) {
+        if (err) { return done(err); }
         if (!user) {
           return done(null, false, {
-            message: 'Incorrect username or password'
+            message: 'Email address or password don\'t match.'
           });
-        }
-
+      }
         done(null, user);
-      })
-      .catch(function (err) {
-        if (err.name === 'UnauthorizedError') {
-          return done(null, false, {
-            message: 'Incorrect username or password'
-          });
-        }
-        done(err);
-      });
+      }
+    )
   }
 ));
 
@@ -131,7 +118,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 app.use(function (req, res, next) {
-  if (req.user && !req.user.isVerified()) {
+  if (req.user && !req.user.verified) {
     req.flash('success', 'Your account has been created. Please check your email for a verification code, or <a href="/register/resend" target="_blank">click here</a> to send another.');
   }
   next();
@@ -169,19 +156,6 @@ fs.readdirSync('./controllers').forEach(function (file) {
   }
 });
 
-function createResetPath(email, code) {
-  return '/account/reset-password?' + querystring.stringify({
-    email: email,
-    token: code
-  });
-}
-
-app.use(function (err, req, res, next) {
-  if (err.name !== 'VerificationError') { return next(err); }
-  req.flash('error', 'The verification code is either expired or invalid');
-  res.redirect('/');
-});
-
 app.use(function (err, req, res, next) {
   if (err.name !== 'UserSessionNotFoundError') { return next(err); }
   req.logout();
@@ -189,12 +163,9 @@ app.use(function (err, req, res, next) {
 });
 
 // TODO: add a 404 page.
-// TODO: handle errors.
 
-models.prepare(function runServer() {
-  app.listen(settings.get('webportal:port'), function () {
-    console.log('App: webportal');
-    console.log('Port:', this.address().port);
-    console.log('Mode:', settings.get('environment'));
-  });
+app.listen(settings.get('webportal:port'), function () {
+  console.log('App: webportal');
+  console.log('Port:', this.address().port);
+  console.log('Mode:', settings.get('environment'));
 });

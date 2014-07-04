@@ -1,4 +1,17 @@
+@soft-red: #d9534f;
+
 .account-link {
+  span.notification {
+    vertical-align: super;
+    position: absolute;
+    top: 2px;
+    right: 15px;
+    background-color: @soft-red;
+    color: white;
+    border-radius: 16px;
+    min-width: 20px;
+    text-align: center;
+  }
   img {
     margin-right: 10px;
   }
@@ -9,5 +22,19 @@
   margin: 0 auto;
   .alert {
     text-align: center;
+  }
+}
+
+.dropdown-menu {
+  .notification-count {
+    span {
+      background-color: @soft-red;
+      color: white;
+      border-radius: 16px;
+      min-width: 20px;
+      text-align: center;
+      position: absolute;
+      right: 10px;
+    }
   }
 }

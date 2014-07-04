@@ -4,15 +4,28 @@ html(lang='en')
     meta(charset='utf-8')
     title ALIS Web Portal
 
-    meta(name='viewport', content='width=device-width, initial-scale=1')
+    meta(name='viewport' content='width=device-width, initial-scale=1')
 
-    link(rel='stylesheet', href='/components/bootstrap/dist/css/bootstrap.css')
-    link(rel='stylesheet', href='/css/layout.css')
+    link(rel='stylesheet' href='/components/bootstrap/dist/css/bootstrap.css')
+    link(rel='stylesheet' href='/css/fontello.css')
+    link(rel='stylesheet' href='/css/layout.css')
 
     block styles
+
+    script(src='/components/jquery/dist/jquery.js')
+    script(src='/components/angular/angular.js')
+    script(src='/components/lodash/dist/lodash.js')
+
+    if user
+      script.
+        var userID = '#{user._id}'
+
+      script(src='/js/webportal-admin.js')
+
+    block scripts-head
+
   body
 
-    //- TODO: find a method to ensure there aren't any redundant mixins defined.
     mixin createLargeLabellessField(name, type, placeholder)
       - var cls = 'form-group'
       - var value = ''
@@ -26,10 +39,10 @@ html(lang='en')
         if fields[name] && typeof fields[name].message == 'string'
           span.help-block #{fields[name].message}
 
-    nav.navbar.navbar-default(role='navigation')
+    nav.navbar.navbar-default(ng-app='navbar' ng-controller='NavbarController' role='navigation')
       .container-fluid
         .navbar-header
-          if (user)
+          if user
             button.navbar-toggle(type='button', data-toggle='collapse', data-target='#navbar')
               span.sr-only
               span.icon-bar
@@ -37,9 +50,31 @@ html(lang='en')
               span.icon-bar
           a.navbar-brand(href='/') ALIS Web Portal
 
-        if (user)
+        if user
           #navbar.collapse.navbar-collapse
-            include partials/loggedin-nav
+            ul.nav.navbar-nav.navbar-right
+              li.dropdown
+                a.dropdown-toggle.account-link(href='dropdown-toggle', data-toggle='dropdown')
+                  - var hash = crypto.createHash('md5').update(user.email_address || '').digest('hex')
+                  img(alt='Your profile picture', src='http://www.gravatar.com/avatar/#{hash}?d=mm&s=16')
+                  | Settings
+                  if user.isAdmin
+                    span(ng-if='unverifiedCount() > 0').notification {{unverifiedCount()}}
+                  |  
+                  b.caret
+                ul.dropdown-menu
+                  if user.isAdmin
+                    li
+                      a(href='/accounts')
+                        span.icon-group
+                        |  Accounts
+                        span.notification-count
+                          span(ng-if='unverifiedCount() > 0') {{unverifiedCount()}}
+                    li.divider
+                  li
+                    a(href='/logout')
+                      span.glyphicon.glyphicon-log-out
+                      |  Log Out
 
     .container-fluid
       .alerts
@@ -67,7 +102,10 @@ html(lang='en')
 
     block content
 
-    script(src='/components/jquery/dist/jquery.js')
+    
     script(src='/components/bootstrap/dist/js/bootstrap.js')
+
+    if (user && user.isAdmin)
+      script(src='/js/admin.js')
 
     block scripts
