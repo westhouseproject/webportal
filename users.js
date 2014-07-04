@@ -67,7 +67,7 @@ module.exports.once = emitter.once.bind(emitter);
     // Call the original method.
     _fn.apply(users, args);
   }.bind(users);
-})
+});
 
 module.exports.createUser = function (options, cb) {
 
