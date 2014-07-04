@@ -156,19 +156,6 @@ fs.readdirSync('./controllers').forEach(function (file) {
   }
 });
 
-function createResetPath(email, code) {
-  return '/account/reset-password?' + querystring.stringify({
-    email: email,
-    token: code
-  });
-}
-
-app.use(function (err, req, res, next) {
-  if (err.name !== 'VerificationError') { return next(err); }
-  req.flash('error', 'The verification code is either expired or invalid');
-  res.redirect('/');
-});
-
 app.use(function (err, req, res, next) {
   if (err.name !== 'UserSessionNotFoundError') { return next(err); }
   req.logout();

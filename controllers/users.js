@@ -14,6 +14,17 @@ module.exports = function (app) {
     }
   );
 
+  app.delete(
+    '/users/:id',
+    route.onlyAdmin,
+    function (req, res, next) {
+      users.remove({ _id: req.params.id }, {}, function (err) {
+        if (err) { return next(err); }
+        res.send({ message: 'Success!' })
+      });
+    }
+  );
+
   app.put(
     '/users/:id',
     function (req, res, next) {
@@ -24,9 +35,6 @@ module.exports = function (app) {
     },
     route.ensureAuthenticated,
     function (req, res, next) {
-      // TODO: Postel's Robustness Principle: allow for a wider range of accept
-      //     types. So far, only JSON is allowed.
-
       var reasons = {
         illegal: 403,
         badrequest: 400

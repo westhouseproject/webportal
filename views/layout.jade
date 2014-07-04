@@ -14,17 +14,18 @@ html(lang='en')
 
     script(src='/components/jquery/dist/jquery.js')
     script(src='/components/angular/angular.js')
+    script(src='/components/lodash/dist/lodash.js')
 
     if user
       script.
         var userID = '#{user._id}'
-        console.log(userID)
+
+      script(src='/js/webportal-admin.js')
 
     block scripts-head
 
   body
 
-    //- TODO: find a method to ensure there aren't any redundant mixins defined.
     mixin createLargeLabellessField(name, type, placeholder)
       - var cls = 'form-group'
       - var value = ''
@@ -38,11 +39,10 @@ html(lang='en')
         if fields[name] && typeof fields[name].message == 'string'
           span.help-block #{fields[name].message}
 
-    //- TODO: use AngularJS to automatically update the notification.
-    nav.navbar.navbar-default(role='navigation')
+    nav.navbar.navbar-default(ng-app='navbar' ng-controller='NavbarController' role='navigation')
       .container-fluid
         .navbar-header
-          if (user)
+          if user
             button.navbar-toggle(type='button', data-toggle='collapse', data-target='#navbar')
               span.sr-only
               span.icon-bar
@@ -50,7 +50,7 @@ html(lang='en')
               span.icon-bar
           a.navbar-brand(href='/') ALIS Web Portal
 
-        if (user)
+        if user
           #navbar.collapse.navbar-collapse
             ul.nav.navbar-nav.navbar-right
               li.dropdown
@@ -58,15 +58,18 @@ html(lang='en')
                   - var hash = crypto.createHash('md5').update(user.email_address || '').digest('hex')
                   img(alt='Your profile picture', src='http://www.gravatar.com/avatar/#{hash}?d=mm&s=16')
                   | Settings
-                  span.notification 1
+                  if user.isAdmin
+                    span(ng-if='unverifiedCount() > 0').notification {{unverifiedCount()}}
                   |  
                   b.caret
                 ul.dropdown-menu
-                  if (user.isAdmin)
+                  if user.isAdmin
                     li
                       a(href='/accounts')
                         span.icon-group
                         |  Accounts
+                        span.notification-count
+                          span(ng-if='unverifiedCount() > 0') {{unverifiedCount()}}
                     li.divider
                   li
                     a(href='/logout')

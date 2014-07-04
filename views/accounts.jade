@@ -4,12 +4,11 @@ block styles
   link(rel='stylesheet' href='/css/accounts.css')
 
 block scripts-head
-  script(src='/components/lodash/dist/lodash.js')
   script(src='/components/async/lib/async.js')
   script(src='/js/accounts.js')
 
 block content
-  .container-fluid(ng-app='users' ng-controller='UsersController')
+  #accounts.container-fluid(ng-app='accounts' ng-controller='UsersController')
     table.table
       thead
         tr
@@ -21,7 +20,8 @@ block content
       tbody
         tr(ng-repeat='user in users | filter:{verified:true}')
           td
-            span.glyphicon.glyphicon-remove.remove-button
+            a(href='#' ng-if='currentUserID !== user._id' ng-click='removeUser(user)')
+              span.glyphicon.glyphicon-remove.remove-button
           td {{user.name}}
           td {{user.email}}
           td {{user.created}}
@@ -53,3 +53,6 @@ block content
             td {{user.created}}
             td.text-right
               input(type='checkbox' ng-model='user.pendingApproval')
+
+  script.
+    angular.bootstrap(document.getElementById('accounts'), ['accounts'])

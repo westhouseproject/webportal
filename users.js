@@ -3,9 +3,12 @@ const bcrypt = require('bcrypt');
 const async = require('async');
 const validator = require('validator');
 const _ = require('lodash');
+const EventEmitter = require('events').EventEmitter;
 
 const users = new Datastore({ filename: './.db/users', autoload: true });
 module.exports = users;
+
+var emitter = new EventEmitter();
 
 // TODO: Limit the number of allowed unverified users.
 // TODO: possible vector of attack? Denying the creation of additional users by
@@ -26,6 +29,45 @@ function isValidPassword(password) {
   const minPasswordLength = 6;
   return validator.isLength(password, minPasswordLength);
 };
+
+module.exports.once = emitter.once.bind(emitter);
+
+// Monkey patches all methods that make changes to the datastore, so that they
+// emit a `change` event.
+['insert', 'update', 'remove'].forEach(function (key) {
+  // The old method.
+  var _fn = users[key];
+
+  // Monkey patch method.
+  users[key] = function () {
+
+    // Get all arguments as an array.
+    var args = Array.prototype.slice.call(arguments);
+
+    // Get the callback, or create a new one.
+    var _callback = args[args.length - 1];
+    if (typeof _callback !== 'function') {
+      _callback = function () {};
+      args.push(callback);
+    }
+
+    // Wrap the client-supplied callback around an emitter.
+    var callback = function () {
+      users.find({}, function (err, users) {
+        if (err) { return; }
+        emitter.emit('change', users);
+      });
+      _callback.apply(this, arguments);
+    };
+
+    // Now swap out the client-supplied callback.
+    args.pop();
+    args.push(callback);
+
+    // Call the original method.
+    _fn.apply(users, args);
+  }.bind(users);
+})
 
 module.exports.createUser = function (options, cb) {
 
