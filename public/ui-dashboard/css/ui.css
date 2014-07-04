@@ -1,0 +1,121 @@
+#topbar{
+
+}
+
+#settings{
+	position: absolute;
+	top: 150px;
+	left: 74px;
+	height: 1100px;
+	width: 1900px;
+}
+
+.settingoff{
+	display: none;
+}
+
+.settingon{
+	padding-left: 30px;
+	display: block;
+	/*background-color: #daebb8;*/
+}
+
+#tabs{
+	height: 1080px;
+	width: 1860px;
+}
+
+#menu{
+	position: absolute;
+}
+
+.menuopen{
+	top:1336px;
+}
+
+.menuhide{
+	top:1520px;
+}
+
+#frame{
+	width: 2048px;
+	height: 1456px;
+}
+
+.gradientBackgroundStop1 { 
+	stop-color: #4B610B; 
+}
+.gradientBackgroundStop2 { 
+	stop-color: #688A08; 
+}
+
+rect.topbg{
+	fill: url(#gradientBackground1);
+	opacity: .9;
+}
+
+rect.menubg{
+	fill: url(#gradientBackground2);
+	opacity: .9;
+}
+
+.gradientBtnStop1 { 
+	stop-color: #86B404; 
+}
+.gradientBtnStop2 { 
+	stop-color: #A5DF00; 
+}
+rect.menuBtn{
+	fill: url(#gradientBtn);
+	opacity: .5;
+}
+
+rect.menuBtnSelect{
+	fill: url(#gradientBtn);
+	opacity: 1;
+}
+
+text.menuText{
+	font-size: 55px;
+	font-family: sans-serif;
+	text-anchor: middle;
+	fill: #F2F2F2;	
+	opacity: 1;
+}
+
+text.menuText:hover{
+	font-size: 55px;
+	font-family: sans-serif;
+	text-anchor: middle;
+	fill: #F2F2F2;	
+	opacity: 0.8;
+}
+
+text.menuTextSelect{
+	font-size: 60px;
+	font-family: sans-serif;
+	text-anchor: middle;
+	fill: #F2F2F2;
+	opacity: 1;	
+}
+
+text.logo{
+	font-size: 55px;
+	font-family: impact;
+	kerning: 3px;
+	fill: #F2F2F2;
+}
+
+text.weathertext{
+	font-size: 40px;
+	font-family: sans-serif;
+	fill: #F2F2F2;	
+}
+
+rect.settingbg{
+	fill: #daebb8;
+	stroke: #4B610B;
+	stroke-width: 5px;
+	stroke-opacity: .9;
+	opacity: .95;
+}

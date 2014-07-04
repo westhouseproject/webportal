@@ -135,10 +135,23 @@ app.use(function (req, res, next) {
   next();
 });
 
+app.use(function (req, res, next) {
+  if (/^\/ui-dashboard/.test(req.url)) {
+    if (!req.isAuthenticated()) {
+      req.flash('error', 'You need to be logged in for that');
+      res.redirect('/');
+      return;
+    }
+  }
+
+  next();
+});
+
 app.use(lessMiddleware({
   src: path.join(__dirname, 'private'),
   dest: path.join(__dirname, 'out')
 }));
+
 app.use(express.static(path.resolve(__dirname, 'public')));
 app.use(express.static(path.resolve(__dirname, 'out')));
 

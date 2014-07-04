@@ -1,0 +1,74 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>  
+	<meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	
+	<link rel="stylesheet" href="css/custom-theme/jquery-ui-1.10.4.custom.css">
+	<script src="js/jquery-1.10.2.js"></script>
+	<script src="js/jquery-ui-1.10.4.custom.js"></script>
+	  
+	<link rel="stylesheet" type="text/css" href="css/ui.css">
+	<script type="text/javascript" src="js/d3/d3.v2.js"></script>
+	 
+	<title>Welcom to ALIS</title>
+</head>
+<body>
+	<div id="topbar">
+		<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="topsvg"></svg>
+	</div>
+	<iframe seamless id="frame" src="dashboard/index.html"></iframe>	
+	<div id="menu" class="menuopen">
+		<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="menusvg">
+			<defs>
+			  <linearGradient id="gradientBackground1" x1="0" x2="0" y1="0" y2="1">
+			    <stop class="gradientBackgroundStop1" offset="0%"></stop>
+			    <stop class="gradientBackgroundStop2" offset="100%"></stop>
+			  </linearGradient>
+			</defs>
+			<defs>
+			  <linearGradient id="gradientBackground2" x1="0" x2="0" y1="0" y2="1">
+			    <stop class="gradientBackgroundStop2" offset="0%"></stop>
+			    <stop class="gradientBackgroundStop1" offset="100%"></stop>
+			  </linearGradient>
+			</defs>
+			<defs>
+			  <linearGradient id="gradientBtn" x1="0" x2="0" y1="0" y2="1">
+			    <stop class="gradientBtnStop2" offset="0%"></stop>
+			    <stop class="gradientBtnStop1" offset="100%"></stop>
+			  </linearGradient>
+			</defs>
+		</svg>
+	</div>
+	<div id="settings" class="settingoff">
+		<div id="tabs">
+			<ul>
+		    	<li><a href="#tabs-1">Goal Settings</a></li>
+		    	<li><a href="#tabs-2">Other Settings</a></li>
+		  	</ul>
+		  	<div id="tabs-1">
+				<h1>Select Your Goal:<h1> 
+				<p>&nbsp</p>
+				<div id="radio1">
+					Save
+				    <input type="radio" id="radio1" name="radio"><label for="radio1">5%</label>
+				    <input type="radio" id="radio2" name="radio" checked="checked"><label for="radio2">10%</label>
+				    <input type="radio" id="radio3" name="radio"><label for="radio3">15%</label>
+					&nbsp compared to last year.
+				</div>
+				<p>&nbsp</p>
+				<div>
+					<button id="okBtn">OK</button>
+					<button id="cancelBtn">Cancel</button>
+				</div>
+		  	</div>
+		  	<div id="tabs-2">
+		    	<p></p>
+		  	</div>
+		</div>
+	</div>
+	<script type="text/javascript" src="js/topbar.js"></script>	
+	<script type="text/javascript" src="js/menu.js"></script>	
+	<script type="text/javascript" src="js/setting.js"></script>		
+</body>
+</html>

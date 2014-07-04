@@ -7,3 +7,4 @@ Capfile
 Vagrantfile
 .vagrant
 .db
+npm-debug.log
